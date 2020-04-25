@@ -1,0 +1,419 @@
+---
+title: "Draft Preliminary Report on the Survey for the Revision of the SAA's Principles of Archaeological Ethics"
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+output: bookdown::html_document2
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE,
+                      message = FALSE,
+                      warning = FALSE)
+```
+
+
+```{r}
+library(tidyverse)
+library(likert)
+library(knitr)
+```
+
+
+
+```{r}
+survey_data <- readr::read_csv("data/raw-data/Data Pull 04-21-20 CSV.csv")
+
+# to easily browse the questions:
+survey_questions_tbl <- tibble(questions = names(survey_data))
+survey_questions_vec <- names(survey_data)
+
+single_response <- c(4, 5, 35, 44, 46, 47, 49, 50, 52, 53, 55)
+multiple_response <- c(6, 7, 42, 54)
+likert <- str_which(survey_questions_vec, "^Principle")
+```
+
+
+# Responses to questions {-}
+
+This draft preliminary report was prepared using data from 21 April 2020, which has `r nrow(survey_data)` responses. Note that not all questions recieved a response, and some questions allow multiple responses. The figures show a computational analysis of the responses using reproducible quantitative methods on the survey responses. 
+
+```{r}
+# general purpose function for single option questions
+
+plot_single_option_question <- function(x, 
+                                        wrap = 20, 
+                                        title_wrap = 60,
+                                        base_size = 10,
+                                        sort_bars = FALSE){
+  
+  output <- 
+  survey_data %>% 
+  group_by(!!as.name(x)) %>% 
+  tally() %>% 
+  drop_na() 
+  
+if(sort_bars) {
+  
+  ggplot(output, 
+       aes(reorder(str_wrap(!!as.name(x), wrap), n),
+             n)) +
+  geom_col() +
+  coord_flip() +
+  xlab("") +
+  ggtitle(str_wrap(paste0(names(output)[1], 
+                          " (", sum(output$n), 
+                          " valid responses)"),
+                   title_wrap)) +
+  theme_bw(base_size = base_size)
+  
+  
+} else {
+
+ggplot(output, 
+       aes(str_wrap(!!as.name(x), wrap), 
+             n)) +
+  geom_col() +
+  coord_flip() +
+  xlab("") +
+  ggtitle(str_wrap(paste0(names(output)[1], 
+                          " (", sum(output$n), 
+                          " valid responses)"),
+                   title_wrap)) +
+  theme_bw(base_size = base_size)
+}
+}
+
+
+plot_multiple_option_question <- function(x, wrap = 30, 
+                                          truncn = 50,
+                                          title_wrap = 60,
+                                          base_size = 10){
+  
+  x_tbl <- 
+    survey_data %>% 
+    select(x) 
+
+ options <-  
+  x_tbl %>%  # split on word.Word
+    separate_rows(names(x_tbl), sep = ",(?=[[:upper:]])") %>% 
+    distinct() %>% 
+    drop_na() %>% 
+    pull
+
+ cross_tab <-   
+ x_tbl %>% 
+   mutate(x = !!as.name(x)) %>% 
+   select(x) %>% 
+   separate(x, 
+             paste0("v", 1:length(options)), 
+             sep = ",(?=[[:upper:]])", remove=F) %>% 
+    select(starts_with("v")) %>% 
+    pivot_longer(cols = v2:paste0("v", length(options)),
+                 names_to = "q",
+                 values_to = "val")  %>% 
+    drop_na %>% 
+    widyr::pairwise_count(v1, val) %>% 
+    spread(item2, n, fill = 0)
+ 
+   # Separate rownames
+  y <- cross_tab
+  row_name <- y$item1
+  y <- y[, colnames(y) != "item1"]
+  
+  # Remove lower matrix
+  y[lower.tri(y)] <- NA
+
+  # Reappend rownames
+   new_col <- tibble::tibble(row_name)
+   names(new_col) <- "."
+   new_df <- c(new_col, y)
+   z <- 
+     dplyr::as_tibble(new_df) %>% 
+     mutate_all(as.character) %>% 
+     replace(is.na(.), "")
+   
+   # count of each 
+  x_tbl_tally <- 
+  x_tbl %>% 
+   mutate(x = !!as.name(x)) %>% 
+   mutate(x = str_squish(x)) %>% 
+   select(x) %>% 
+   separate_rows(x, 
+             sep = ",(?=[[:upper:]])") %>% 
+    mutate(x = str_squish(x)) %>% 
+    group_by(x) %>% 
+    tally() %>% 
+    drop_na() %>% 
+    arrange(-n)
+ 
+plot <- 
+ggplot(x_tbl_tally, 
+       aes(reorder(str_wrap(x, wrap), n),
+             n)) +
+  geom_col() +
+  coord_flip() +
+  xlab("") +
+  ggtitle(str_wrap(paste0(str_trunc(x, truncn), 
+                          " (", sum(x_tbl_tally$n), 
+                          " valid responses)"), 
+                   title_wrap)) +
+  theme_bw(base_size = base_size)
+
+return(list(plot = plot, 
+            crosstab = z,
+            tally = x_tbl_tally))
+}
+
+
+```
+
+```{r}
+# current member?
+# how frequently?  
+p1 <- 
+  map(single_response[1:2], 
+    ~plot_single_option_question(survey_questions_vec[.x],
+                                 base_size = 8,
+                                 title_wrap = 30
+                                 ))
+```
+
+
+```{r}
+# How have you used the SAA Principles of Ethics?
+how_have_you_used <- 
+  plot_multiple_option_question(survey_questions_vec[multiple_response[1]])
+
+p2 <- how_have_you_used$plot
+
+# kable(how_have_you_used$crosstab)
+```
+
+
+```{r}
+# What type of ethical document(s) do you feel would best serve the SAA membership? 
+what_type_of_doc <- 
+  plot_multiple_option_question(survey_questions_vec[multiple_response[3]])
+
+p3 <- what_type_of_doc$plot
+
+# kable(what_type_of_doc$crosstab)
+```
+
+
+```{r fig.height=10}
+library(patchwork)
+wrap_plots(p1) / p2 / p3 + plot_layout(heights = c(1, 3, 3))
+```
+
+
+## Exploring the free text responses to "What do you see as being the primary ethical concerns in the field today?" {-}
+
+We use a word cloud to visualize the most frequently used words in the responses. The network plot shows how frequently used words co-occur with each other. The topic plot shows a computational model of topics present in the responses. It indicates which topics are most abundant in the responses  
+
+```{r}
+# Word cloud
+library(quanteda)
+
+pec <- 
+survey_data %>% 
+  select(starts_with("What do you see as being the primary ethical")) %>% 
+  pull() %>% 
+  tolower()
+
+pec_cor <- corpus(pec)
+
+set.seed(10)
+dfmat1 <- dfm(pec,
+              remove = c(stopwords("english"), 
+                         "archaeological",
+                         "archaeologists",
+                         "archaeology"), 
+              remove_punct = TRUE,
+              remove_numbers = TRUE) %>%
+   dfm_trim(min_termfreq = 3)
+
+# basic wordcloud
+wc <- ~{
+  textplot_wordcloud(dfmat1, 
+                   color = rev(RColorBrewer::brewer.pal(10, "RdBu")))
+  }
+```
+
+```{r}
+df_fcm <- fcm(dfmat1)
+top_fcm <- fcm_select(df_fcm, pattern = names(quanteda::topfeatures(dfmat1, n = 20)))
+nw <- textplot_network(top_fcm, 
+                       min_freq = 0.75, 
+                       edge_alpha = 0.3, 
+                       edge_size = 5)
+```
+
+
+```{r cache=TRUE}
+library(stm)
+
+stm_out <- 
+  stm(dfmat1, 
+      init.type="Spectral", 
+      K = 0, # 45 topics
+      verbose = FALSE) 
+
+library(broom)
+td_beta <- tidy(stm_out)
+td_gamma <- tidy(stm_out, 
+                 matrix = "gamma",
+                 document_names = rownames(dfmat1))
+
+library(ggthemes)
+
+top_terms <- td_beta %>%
+  arrange(beta) %>%
+  group_by(topic) %>%
+  top_n(7, beta) %>%
+  arrange(-beta) %>%
+  select(topic, term) %>%
+  summarise(terms = list(term)) %>%
+  mutate(terms = map(terms, paste, collapse = ", ")) %>% 
+  unnest()
+
+gamma_terms <- td_gamma %>%
+  group_by(topic) %>%
+  summarise(gamma = mean(gamma)) %>%
+  arrange(desc(gamma)) %>%
+  left_join(top_terms, by = "topic") %>%
+  mutate(topic = paste0("Topic ", topic),
+         topic = reorder(topic, gamma))
+
+tm <- 
+gamma_terms %>%
+  top_n(20, gamma) %>%
+  ggplot(aes(topic, 
+             gamma, 
+             label = str_wrap(terms, 80), 
+             fill = topic)) +
+  geom_col(show.legend = FALSE) +
+  geom_text(hjust = 0, 
+            vjust = 0.5,
+            lineheight = .75,
+            nudge_y = 0.0005, 
+            size = 2.5) +
+  coord_flip() +
+  scale_y_continuous(expand = c(0,0),
+                     limits = c(0, 0.09),
+                     labels = scales::percent_format()) +
+  labs(x = NULL, y = expression(gamma),
+       title = "Top 20 topics by prevalence in the question\n'What do you see as being the primary ethical concerns in the field today?'",
+       subtitle = "With the top words that contribute to each topic") +
+  theme_bw()
+```
+
+```{r results='hide', cache=TRUE}
+library(cowplot)
+library(gridGraphics)
+
+dev.off()
+
+plot_grid(plot_grid(wc, nw, 
+                    ncol = 2,
+                    labels=c("A","B")),
+          tm, 
+          nrow = 2,
+          labels = c("", "C"),
+          rel_heights = c(1, 2)) + 
+  panel_border(remove = TRUE)
+
+ggsave(here::here('figures/primary_ethical_concerns.png'))
+
+dev.off()
+```
+
+```{r fig.cap="Visualisation of responses to 'What do you see as being the primary ethical concerns in the field today?' A: Word cloud of free text responses. B: Network of co-occurrences of high-frequency words. C: Topic model output."}
+knitr::include_graphics(here::here('figures/primary_ethical_concerns.png'))
+```
+
+# Responses to questions about the current nine Principles {-}
+
+For each of the nine Principles we collected responses using a Likert scale with five items: Strongly disagree, Disagree, Neither agree nor disagree, Agree, and Strongly agree.
+
+```{r fig.width=8, fig.cap="Plot of responses to the Likert scale questions about the current nine Principles"}
+# plot Likert scale items: Principles
+library(grid)
+  mylevels <- c('Strongly Disagree', 'Disagree', 'Neutral', 'Agree', 'Strongly Agree')
+  
+  output <- 
+  survey_data %>% 
+  select(!!likert) %>% 
+  drop_na() %>% 
+  mutate_all(~factor(., levels=mylevels)) %>% 
+  as.data.frame()
+  
+  long_names <- names(output)
+  short_names  <- str_extract(names(output), ".*\\d")
+  short_principles <- 
+    c("Stewardship",
+      "Accountability",
+      "Commercialization",
+      "Public Education",
+      "Intellectual Property",
+      "Public Reporting",
+      "Records and Preservation",
+      "Training and Resources",
+      "Safe Educational and Workplace"
+      )
+  
+  names(output) <- paste0(short_names, ": ", short_principles)
+  
+  l_out <- likert(output)
+  
+plot(l_out, include.histogram = TRUE) 
+```
+
+# Demographics of respondants {-}
+
+```{r}
+# how many years worked in archaeology?
+survey_data %>% 
+  select(`How many years have you worked in/with archaeology?`) %>% 
+  ggplot(aes(`How many years have you worked in/with archaeology?`)) +
+  geom_histogram() +
+  theme_bw()
+```
+
+```{r fig.height=7}
+p2 <- 
+  map(single_response[3:10], 
+    ~plot_single_option_question(survey_questions_vec[.x], 
+                                 base_size = 8,
+                                 title_wrap = 30))
+
+wrap_plots(p2, ncol = 2)
+```
+
+```{r}
+# primary work setting 
+p3 <- 
+  plot_single_option_question(survey_questions_vec[single_response[11]], 
+                            wrap = 60,
+                            title_wrap = 40,
+                            sort_bars = TRUE
+                            ) 
+```
+
+```{r}
+# Where do you do fieldwork/research? 
+where_do_you_do_fieldwork <- 
+  plot_multiple_option_question(survey_questions_vec[multiple_response[4]],
+                                wrap = 50,
+                                truncn = 100,
+                            title_wrap = 40)
+
+p4 <- where_do_you_do_fieldwork$plot
+
+# kable(where_do_you_do_fieldwork$crosstab)
+```
+
+```{r fig.height=7}
+p3 / p4
+```
+
+
