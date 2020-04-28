@@ -10,16 +10,15 @@ knitr::opts_chunk$set(echo = FALSE,
                       warning = FALSE)
 ```
 
-
-```{r}
+```{r load-pkgs}
 library(tidyverse)
 library(likert)
 library(knitr)
+library(UpSetR)
+library(patchwork)
 ```
 
-
-
-```{r}
+```{r load-data}
 survey_data <- readr::read_csv("data/raw-data/Data Pull 04-21-20 CSV.csv")
 
 # to easily browse the questions:
@@ -29,14 +28,14 @@ survey_questions_vec <- names(survey_data)
 single_response <- c(4, 5, 35, 44, 46, 47, 49, 50, 52, 53, 55)
 multiple_response <- c(6, 7, 42, 54)
 likert <- str_which(survey_questions_vec, "^Principle")
+likert_general <- str_which(survey_questions_vec, "^The SAA Principles of Ethics")
 ```
 
+# Introduction   {-}
 
-# Responses to questions {-}
+This draft preliminary report was prepared using data from 21 April 2020, which has `r nrow(survey_data)` responses. Note that not all questions received a response, and some questions allow multiple responses. The figures show a computational analysis of the responses using reproducible quantitative methods on the survey responses. 
 
-This draft preliminary report was prepared using data from 21 April 2020, which has `r nrow(survey_data)` responses. Note that not all questions recieved a response, and some questions allow multiple responses. The figures show a computational analysis of the responses using reproducible quantitative methods on the survey responses. 
-
-```{r}
+```{r create-functions}
 # general purpose function for single option questions
 
 plot_single_option_question <- function(x, 
@@ -93,7 +92,7 @@ plot_multiple_option_question <- function(x, wrap = 30,
     select(x) 
 
  options <-  
-  x_tbl %>%  # split on word.Word
+  x_tbl %>%  # split on word,Word
     separate_rows(names(x_tbl), sep = ",(?=[[:upper:]])") %>% 
     distinct() %>% 
     drop_na() %>% 
@@ -158,59 +157,206 @@ ggplot(x_tbl_tally,
                    title_wrap)) +
   theme_bw(base_size = base_size)
 
+
+upset_tbl <- 
+  x_tbl %>% 
+  mutate(x = !!as.name(x)) %>% 
+  mutate(id = row_number()) %>% 
+  separate_rows(x, sep = ",(?=[[:upper:]])") %>% 
+  drop_na(x) %>% 
+  mutate(y = 1) %>%
+  spread(x, y, fill = 0)  
+  
+ upset_plot <- 
+  upset_tbl %>% 
+  as.data.frame() %>% 
+  upset(sets.bar.color = "gray20",
+        main.bar.color = "gray20",
+        order.by = "freq") 
+ 
+upset_plot_caption <-  
+  paste0(str_trunc(x, truncn), 
+                          " (", 
+                          sum(x_tbl_tally$n), 
+                          " selections in ",
+                          nrow(x_tbl),
+                          " responses)")
+
 return(list(plot = plot, 
             crosstab = z,
-            tally = x_tbl_tally))
+            tally = x_tbl_tally,
+            upset = upset_tbl,
+            upset_plot = upset_plot,
+            upset_plot_caption = upset_plot_caption))
 }
 
 
 ```
 
-```{r}
+# Uses of the current 'Principles of Archaeological Ethics'  {-}
+
+```{r consult-freq, fig.height=3}
 # current member?
 # how frequently?  
-p1 <- 
-  map(single_response[1:2], 
-    ~plot_single_option_question(survey_questions_vec[.x],
-                                 base_size = 8,
-                                 title_wrap = 30
-                                 ))
+p1 <- plot_single_option_question(survey_questions_vec[single_response[2]],
+                                 base_size = 10,
+                                 title_wrap = 70
+                                 )
+
+p1
 ```
 
+Figure \@ref(fig:how-have-used-plot) shows the results for multiple response question "How have you used the SAA Principles of Ethics?". The horizontal bar plot on the left side indicates the total number of responses for each option, either individually or in any combination with other options. The vertical bar plot on the right shows the number of responses for each option by the specific combination of one option with other options. This allows us to see what combinations of options are common in the responses.
 
-```{r}
+```{r how-have-used}
 # How have you used the SAA Principles of Ethics?
 how_have_you_used <- 
   plot_multiple_option_question(survey_questions_vec[multiple_response[1]])
+```
 
-p2 <- how_have_you_used$plot
+```{r how-have-used-plot, fig.cap=how_have_you_used$upset_plot_caption, fig.height=3}
+how_have_you_used$upset_plot
+```
 
-# kable(how_have_you_used$crosstab)
+## Consulting other codes of ethics {-}
+
+```{r other-orgs}
+# Have you consulted any other codes of ethics?
+other_codes <- 
+  plot_single_option_question(survey_questions_vec[8])
+
+other_orgs <- 
+  read_csv(here::here("data/derived-data/other-orgs-mentioned.txt")) %>% 
+  select(-X2) %>% 
+  mutate(count = 0) %>% 
+  mutate(org_name = tolower(org_name))
+
+other_codes_chr <- 
+survey_data %>% 
+  select(9) %>% 
+  pull %>% 
+  tolower
+
+# for each org, how many times are they mentioned in this Q?
+for(i in seq_len(nrow(other_orgs))){
+  t1 <- other_orgs[i, 1]$org_name
+  other_orgs[i, 2]$count <- 
+    sum(str_count(other_codes_chr, t1), na.rm = TRUE)
+}
+
+# simplify duplicate names
+other_orgs_tbl <- 
+other_orgs %>% 
+  mutate(org = case_when(
+    org_name == 'aaa' ~ 'american anthropological association',
+    org_name == 'rpa' ~ 'register of professional archaeologists',
+    org_name == 'ropa' ~ 'register of professional archaeologists',
+    org_name == 'wac' ~ 'world archaeological congress',
+    org_name == 'world archaeology congress' ~ 'world archaeological congress',
+    org_name == 'sha' ~ 'society for historical archaeology',
+    org_name == 'aapa' ~ 'american association of physical anthropologists',
+    org_name == 'aia' ~ 'archaeological institute of america',
+    org_name == 'eaa' ~ 'european association of archaeologists',
+    org_name == 'cifa' ~ 'chartered institute for archaeologists',
+    org_name == 'chartered institute of archaeologists' ~ 'chartered institute for archaeologists',
+    TRUE ~ org_name
+  ))
+
+other_orgs_tbl_tally <- 
+other_orgs_tbl %>% 
+  group_by(org) %>% 
+  summarise(n = sum(count)) %>% 
+  arrange(desc(n)) %>% 
+  filter( n >= 10)
+```
+
+Approximately `r nrow(other_orgs_tbl_tally)` different organisations were named in responses to this question. Most of these were named less than five times. These include state and regional archaeological societies and associations (e.g. Texas, California, Arizona, Colorado, etc.), other disciplines (e.g. American Association of Geographers, American Geophysical Union, Society of Vertebrate Paleontology), and specialized documents such as FAIR and CARE. Reasons give for why these documents were consulted included for teaching and study (e.g graduate and undergraduate coursework students and instructors), and to resolve a dispute or investigate a grievance (especially related to the RPA).
+
+```{r other-orgs-plot, fig.cap="Other organisations mentioned more than ten times in responses to the question 'Have you consulted any other codes of ethics?'", fig.height=3}
+ggplot(other_orgs_tbl_tally,
+       aes(reorder(org, n), 
+           n)) +
+  geom_col() +
+  coord_flip() +
+  theme_minimal() +
+  xlab("") +
+  ylab("Number of times mentioned") +
+  ggtitle(str_c("Other organisations mentioned more than\nten times in responses to the question\n'Have you consulted any other codes of ethics?'\n(", nrow(other_orgs), " organisations in ", length(other_codes_chr), " responses)"))
 ```
 
 
-```{r}
-# What type of ethical document(s) do you feel would best serve the SAA membership? 
-what_type_of_doc <- 
-  plot_multiple_option_question(survey_questions_vec[multiple_response[3]])
+# Feedback on the current nine "Principles of Archaeological Ethics" {-}
 
-p3 <- what_type_of_doc$plot
+The figure below summarizes responses about the current nine "Principles of Archaeological Ethics". For each Principle, we asked "I feel that this principle and its description adequately applies to archaeological practice and its ethical challenges today." Respondents could choose one of five options along a spectrum from "Strongly Disagree" to "Strongly Agree". Figure \@ref(fig:likert-scale) shows the distribution of responses to each of those five options for each of the nine principles. We can quickly see that the principle about "Accountability" is the least applicable to current archaeological practice, with 9% of respondents. disagreeing.
 
-# kable(what_type_of_doc$crosstab)
+```{r likert-scale, fig.width=8, fig.cap="Plot of responses to the individual Likert scale questions about the current nine Principles"}
+# plot Likert scale items: Principles
+library(grid)
+  mylevels <- c('Strongly Disagree', 'Disagree', 'Neutral', 'Agree', 'Strongly Agree')
+  
+  output <- 
+  survey_data %>% 
+  select(!!likert) %>% 
+  drop_na() %>% 
+  mutate_all(~factor(., levels=mylevels)) %>% 
+  as.data.frame()
+  
+  long_names <- names(output)
+  short_names  <- str_extract(names(output), ".*\\d")
+  short_principles <- 
+    c("Stewardship",
+      "Accountability",
+      "Commercialization",
+      "Public Education",
+      "Intellectual Property",
+      "Public Reporting",
+      "Records and Preservation",
+      "Training and Resources",
+      "Safe Educational and Workplace"
+      )
+  
+  names(output) <- paste0(short_names, ": ", short_principles)
+  
+  l_out <- likert(output)
+  
+plot(l_out, include.histogram = TRUE) 
+```
+
+## General observations on the current nine Principles {-}
+
+```{r likert-scale-general, fig.width=8, fig.height = 3, fig.cap="Plot of responses to the Likert scale questions about general observations on the current nine Principles"}
+
+  output <- 
+  survey_data %>% 
+  select(!!likert_general) %>% 
+  drop_na() %>% 
+  mutate_all(~factor(., levels=mylevels)) %>% 
+  as.data.frame()
+  
+  long_names <- names(output)
+  short_names  <- 
+    c("adequately addresses ethical concerns in the country in which I work/study/teach",
+      "adequately addresses ethical concerns in sector in which I work"
+      )
+  
+  names(output) <- short_names
+  
+  l_out <- likert(output)
+  
+plot(l_out, include.histogram = TRUE) 
 ```
 
 
-```{r fig.height=10}
-library(patchwork)
-wrap_plots(p1) / p2 / p3 + plot_layout(heights = c(1, 3, 3))
-```
 
+## Feedback on the future of ethics and the SAA {-}
 
-## Exploring the free text responses to "What do you see as being the primary ethical concerns in the field today?" {-}
+### Responses to the question "What do you see as being the primary ethical concerns in the field today?" {-}
 
-We use a word cloud to visualize the most frequently used words in the responses. The network plot shows how frequently used words co-occur with each other. The topic plot shows a computational model of topics present in the responses. It indicates which topics are most abundant in the responses  
+We use a word cloud to visualize the most frequently used words in the responses. The network plot shows how frequently used words co-occur with each other. The topic plot shows a computational model of topics present in the responses. It indicates which topics are most abundant in the responses. 
 
-```{r}
+A topic model is a statistical analysis of text that assumes there are k topics present in all the responses (we have to choose this number in advance, we use methods to estimate it). It assumes that every unique word in the text has a certain probability that it will appear in each topic. Computing these probability distributions is an iterative process, so each time we run the code we get slightly different combinations of words in the topics. A 'topic' then, is a distribution of all the unique words in the text, and one topic is different from another topic by the probability distributions of the unique words. One word can have a high probability of appearing in multiple topics, that's why we see some duplication of words in different topics in the bar plot. The highest probability words for each topic are shown in the bar plot. Some of our topics are a bit 'noisy', and not highly distinctive or easily interpretable, this might be improved with some further tuning. This probabilistic approach is an advantage over the methods used for frequency-based methods (such as the word cloud), which are simply based on counts on the unique words, and so only allows a word to have a single meaning. 
+
+```{r wordcloud}
 # Word cloud
 library(quanteda)
 
@@ -248,8 +394,7 @@ nw <- textplot_network(top_fcm,
                        edge_size = 5)
 ```
 
-
-```{r cache=TRUE}
+```{r stm, cache=TRUE}
 library(stm)
 
 stm_out <- 
@@ -307,7 +452,7 @@ gamma_terms %>%
   theme_bw()
 ```
 
-```{r results='hide', cache=TRUE}
+```{r make-stm-wordcloud-plot, results='hide', cache=TRUE, dependson="stm"}
 library(cowplot)
 library(gridGraphics)
 
@@ -331,46 +476,61 @@ dev.off()
 knitr::include_graphics(here::here('figures/primary_ethical_concerns.png'))
 ```
 
-# Responses to questions about the current nine Principles {-}
+### Responses to the question "What type of ethical document(s) do you feel would best serve the SAA membership?" {-}
 
-For each of the nine Principles we collected responses using a Likert scale with five items: Strongly disagree, Disagree, Neither agree nor disagree, Agree, and Strongly agree.
-
-```{r fig.width=8, fig.cap="Plot of responses to the Likert scale questions about the current nine Principles"}
-# plot Likert scale items: Principles
-library(grid)
-  mylevels <- c('Strongly Disagree', 'Disagree', 'Neutral', 'Agree', 'Strongly Agree')
-  
-  output <- 
-  survey_data %>% 
-  select(!!likert) %>% 
-  drop_na() %>% 
-  mutate_all(~factor(., levels=mylevels)) %>% 
-  as.data.frame()
-  
-  long_names <- names(output)
-  short_names  <- str_extract(names(output), ".*\\d")
-  short_principles <- 
-    c("Stewardship",
-      "Accountability",
-      "Commercialization",
-      "Public Education",
-      "Intellectual Property",
-      "Public Reporting",
-      "Records and Preservation",
-      "Training and Resources",
-      "Safe Educational and Workplace"
-      )
-  
-  names(output) <- paste0(short_names, ": ", short_principles)
-  
-  l_out <- likert(output)
-  
-plot(l_out, include.histogram = TRUE) 
+```{r what-type-document}
+# What type of ethical document(s) do you feel would best serve the SAA membership? 
+what_type_of_doc <- 
+  plot_multiple_option_question(survey_questions_vec[multiple_response[3]])
 ```
+
+```{r what-type-document-plot, fig.cap=what_type_of_doc$upset_plot_caption, fig.height=3}
+what_type_of_doc$upset_plot
+```
+
+###  Responses to the question "What should be the purpose of the SAA's ethical document?"  {-}
+
+```{r, fig.height=3, fig.width=7, fig.cap="Plot showing the abundance of each option in each of the five ranking positions for the question 'What should be the purpose of the SAA'"}
+purpose_options <- c(
+"Establish best practices for the profession",
+"Establish and enforce best practices for the profession",
+"Establish expectations for the behavior of professionals",
+"Demonstrate integrity of profession",
+"For use in education and training")
+
+purpose_of_ethics_doc <- 
+survey_data %>% 
+  select(starts_with("What should be the purpose of the SAA")) %>% 
+  drop_na() %>% 
+  set_names(str_c("rank ", 1:length(purpose_options))) %>% 
+  mutate(id = row_number()) %>% 
+  pivot_longer(cols = -id,
+               names_to = "variable",
+               values_to = "value") %>% 
+  mutate(value = case_when(
+    value == 1 ~ purpose_options[1],
+    value == 2 ~ purpose_options[2],
+    value == 3 ~ purpose_options[3],
+    value == 4 ~ purpose_options[4],
+    value == 5 ~ purpose_options[5],
+    TRUE    ~ "other"
+  )) 
+
+purpose_of_ethics_doc$value <- 
+  factor(purpose_of_ethics_doc$value, levels = purpose_options)
+
+ggplot(purpose_of_ethics_doc,
+       aes(variable, fill = value)) +
+  geom_bar() +
+  scale_fill_viridis_d(name = "Purpose") +
+  xlab("") +
+  theme_bw()
+```
+
 
 # Demographics of respondants {-}
 
-```{r}
+```{r how-many-years, fig.height=3}
 # how many years worked in archaeology?
 survey_data %>% 
   select(`How many years have you worked in/with archaeology?`) %>% 
@@ -379,24 +539,14 @@ survey_data %>%
   theme_bw()
 ```
 
-```{r fig.height=7}
+```{r demographics, fig.height=10}
 p2 <- 
-  map(single_response[3:10], 
+  map(single_response[c(1, 3:11)], 
     ~plot_single_option_question(survey_questions_vec[.x], 
                                  base_size = 8,
                                  title_wrap = 30))
 
 wrap_plots(p2, ncol = 2)
-```
-
-```{r}
-# primary work setting 
-p3 <- 
-  plot_single_option_question(survey_questions_vec[single_response[11]], 
-                            wrap = 60,
-                            title_wrap = 40,
-                            sort_bars = TRUE
-                            ) 
 ```
 
 ```{r}
@@ -408,12 +558,8 @@ where_do_you_do_fieldwork <-
                             title_wrap = 40)
 
 p4 <- where_do_you_do_fieldwork$plot
-
-# kable(where_do_you_do_fieldwork$crosstab)
 ```
 
-```{r fig.height=7}
-p3 / p4
-```
+
 
 
