@@ -3,7 +3,7 @@ title: "Draft Preliminary Report on the Survey for the Revision of the SAA's Pri
 date: "`r format(Sys.time(), '%d %B, %Y')`"
 output: 
   bookdown::html_document2:
-  number_sections: true
+  number_sections: false
 ---
 
 ```{r setup, include=FALSE}
@@ -22,12 +22,28 @@ library(patchwork)
 ```
 
 ```{r load-data}
-survey_data <- readr::read_csv("data/raw-data/Data Pull 04-21-20 CSV.csv")
+survey_data <- 
+  readr::read_csv("data/raw-data/Data Pull 04-30-20 CSV.csv") %>% 
+  select(-starts_with("X"))
+
+# names from the first data pull only
+# saveRDS(names(survey_data), here::here("data/derived-data/column-names.rds"))
+
+# get col names from first data pull
+saved_names <- readRDS(here::here("data/derived-data/column-names.rds"))
+
+# only keep cols that are in the first data pull
+survey_data <- 
+  survey_data %>% 
+  select(saved_names)
 
 # to easily browse the questions:
 survey_questions_tbl <- tibble(questions = names(survey_data))
 survey_questions_vec <- names(survey_data)
 
+# to easily browse the questions:
+survey_questions_tbl <- tibble(questions = names(survey_data))
+survey_questions_vec <- names(survey_data)
 single_response <- c(4, 5, 35, 44, 46, 47, 49, 50, 52, 53, 55)
 multiple_response <- c(6, 7, 42, 54)
 likert <- str_which(survey_questions_vec, "^Principle")
@@ -36,7 +52,7 @@ likert_general <- str_which(survey_questions_vec, "^The SAA Principles of Ethics
 
 # Introduction {-}
 
-This draft preliminary report was prepared using data from 21 April 2020, which has `r nrow(survey_data)` responses. Note that not all questions received a response, and some questions allow multiple responses. The figures show a computational analysis of the responses using reproducible quantitative methods on the survey responses. 
+This draft preliminary report was prepared using data from 30 April 2020, which has `r nrow(survey_data)` responses. Note that not all questions received a response, and some questions allow multiple responses. The figures show a computational analysis of the responses using reproducible quantitative methods on the survey responses. 
 
 ```{r create-functions}
 # general purpose function for single option questions
@@ -298,7 +314,7 @@ other_codes_chr <-
 survey_data %>% 
   select(9) %>% 
   pull %>% 
-  tolower
+  stringi::stri_trans_tolower() 
 
 # for each org, how many times are they mentioned in this Q?
 for(i in seq_len(nrow(other_orgs))){
@@ -333,7 +349,7 @@ other_orgs_tbl %>%
   filter( n >= 10)
 ```
 
-Approximately `r length(other_codes_chr)` different organisations were named in responses to this question. Most of these were named less than five times. These include state and regional archaeological societies and associations (e.g. Texas, California, Arizona, Colorado, etc.), other disciplines (e.g. American Association of Geographers, American Geophysical Union, Society of Vertebrate Paleontology), and specialized documents such as FAIR and CARE. Reasons give for why these documents were consulted included for teaching and study (e.g graduate and undergraduate coursework students and instructors), and to resolve a dispute or investigate a grievance (especially related to the RPA).
+Approximately `r nrow(other_orgs)` different organisations were named in responses to this question. Most of these were named less than five times. These include state and regional archaeological societies and associations (e.g. Texas, California, Arizona, Colorado, etc.), other disciplines (e.g. American Association of Geographers, American Geophysical Union, Society of Vertebrate Paleontology), and specialized documents such as FAIR and CARE. Reasons give for why these documents were consulted included for teaching and study (e.g graduate and undergraduate coursework students and instructors), and to resolve a dispute or investigate a grievance (especially related to the RPA).
 
 ---
 
@@ -434,7 +450,7 @@ pec <-
 survey_data %>% 
   select(starts_with("What do you see as being the primary ethical")) %>% 
   pull() %>% 
-  tolower()
+  stringi::stri_trans_tolower()
 
 pec_cor <- corpus(pec)
 
@@ -446,18 +462,23 @@ dfmat1 <- dfm(pec,
                          "archaeology"), 
               remove_punct = TRUE,
               remove_numbers = TRUE) %>%
-   dfm_trim(min_termfreq = 3)
+   dfm_trim(min_termfreq = 5)
 
 # basic wordcloud
 wc <- ~{
   textplot_wordcloud(dfmat1, 
                    color = rev(RColorBrewer::brewer.pal(10, "RdBu")))
-  }
+}
+
+
+
 ```
 
 ```{r}
 df_fcm <- fcm(dfmat1)
-top_fcm <- fcm_select(df_fcm, pattern = names(quanteda::topfeatures(dfmat1, n = 20)))
+top_fcm <- 
+  fcm_select(df_fcm, 
+             pattern = names(quanteda::topfeatures(dfmat1, n = 20)))
 nw <- textplot_network(top_fcm, 
                        min_freq = 0.75, 
                        edge_alpha = 0.3, 
@@ -528,10 +549,11 @@ library(gridGraphics)
 
 dev.off()
 
-plot_grid(plot_grid(wc, nw, 
+plot_grid(plot_grid(wc, 
+                    nw, 
                     ncol = 2,
                     labels=c("A","B")),
-          tm, 
+         tm, 
           nrow = 2,
           labels = c("", "C"),
           rel_heights = c(1, 2)) + 
@@ -564,7 +586,7 @@ what_type_of_doc$upset_plot
 
 <!-- by age --> 
 
-```{r what-type-document-by-years-plot, fig.cap="Distribution of responses to the question 'hat type of ethical document(s) do you feel would best serve the SAA membership?' by years worked in archaeology", fig.height=8}
+```{r what-type-document-by-years-plot, fig.cap="Distribution of responses to the question 'What type of ethical document(s) do you feel would best serve the SAA membership?' by years worked in archaeology", fig.height=6, fig.width=10}
 what_type_of_doc_by_year_worked <- 
 survey_data %>% 
   select(survey_questions_vec[multiple_response[3]],
@@ -711,8 +733,6 @@ plot_single_option_question(survey_questions_vec[single_response[3]],
 ```
 
 ```{r stm2, results='hide', cache=TRUE}
-survey_data %>% 
-  select(survey_questions_vec[36])
 
 additional <- 
 survey_data %>% 
