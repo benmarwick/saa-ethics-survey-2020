@@ -10,7 +10,8 @@ output:
 knitr::opts_chunk$set(echo = FALSE,
                       message = FALSE,
                       warning = FALSE,
-                      fig.retina = 2)
+                      fig.retina = 2,
+                      fig.width = 10)
 # working from https://pubs.acs.org.sci-hub.se/doi/pdfplus/10.1021/bk-2017-1260.ch007
 ```
 
@@ -88,7 +89,7 @@ We focus on the questions about the nine Principles and the Likert-type response
 names(output) <- str_remove_all(short_principles, " ")
 ```
 
-## Testing the assumptions for Factor Analysis
+### Testing the assumptions for Factor Analysis
 
 We assume that there are at least some correlations among the variables so that coherent factors can be identified. There should be some degree of collinearity among the variables but not an extreme degree or singularity among the variables.
 
@@ -114,22 +115,55 @@ check_fs
 
 We explore the structure in the data using a hierarchical cluster analysis where distances are calculated using polychoric correlation. This is a correlation method for ordinal responses such as likert-type data where we don't know the exact distances between each measurement unit. For example, is the difference between "Strongly Agree" and "Agree" the same is the difference between "Disagree" and "Strongly Disagree"? Are these distances the same for each person? We don't know. 
 
+### Correlations
+
+This plot below shows all pairwise correlations between the questions about the nine Principles. We use a hierarchical cluster analysis to identify similar correlations and these are indicated by the black squares. We can see responses to these questions are mostly positively correlated with each other. The 'Stewardship' principle less so than the others. 
+
+```{r corr}
+
+library(psych)
+r.poly <- polychoric(data.matrix(output)) 
+
+library(corrplot)
+# https://rpubs.com/melike/corrplot
+ corrplot(
+   r.poly$rho,
+   method = "square",
+   outline = FALSE,
+   addgrid.col = "darkgray",
+   order = "hclust",
+   rect.col = "black",
+   cl.pos = "b",
+   addrect = 3,
+   tl.col = "indianred4",
+   addCoef.col = "white", 
+   number.digits = 2, 
+   number.cex = 0.75,
+   # diag = FALSE,
+   #type="lower"
+ )
+ 
+```
+
+### Hierarchical Cluster Analysis
+
+We computed a hierarchical cluster analysis on the correlations to see which questions tend to be similar in how people responded. For example, we can see that responses to questions about the principles on public education and accountability are closely correlated. 
+
 ```{r iclust-eda}
 # hierarchical cluster analysis 
 # https://cran.r-project.org/web/packages/psychTools/vignettes/factor.pdf
 library(psych)
-r.poly <- polychoric(data.matrix(output)) 
 ic.poly <- 
   iclust(r.poly$rho,
          title = "")
-iclust.diagram(ic.poly, 
-               main = "",
-               cex = 0.75)
+# iclust.diagram(ic.poly, 
+#                main = "",
+#                cex = 0.75)
 ```
 
+### Optimum number of latent factors
 
-
-We explore to see how many latent factors are present in our data. 
+Next we can explore to find the optimum number of factors to group the correlated questions into. To do this need to identify how many latent factors are present in our data. 
 
 ```{r}
 # How many factors to retain in Factor Analysis 
@@ -152,10 +186,10 @@ how_many <- plot(n) +
   labs(title = "" ) +
   theme_modern() # maybe 2?
 
-# how_many
+how_many
 ```
 
-We use Confirmatory Factor Analysis (CFA) to evaluate several models of our data using different numbers of latent factors. This will help us make a good choice the best number of factors to extract. 
+After exploring, we can confirm the optimum number of latent factors using Confirmatory Factor Analysis (CFA). This allows us to evaluate several models of our data using different numbers of latent factors. This will help us make a good choice the best number of factors to extract. 
 
 ```{r}
 # How can we statistically test if that’s actually the case? This can be done using Confirmatory Factor Analysis (CFA), that bridges factor analysis with Structural Equation Modelling (SEM).
@@ -198,7 +232,7 @@ cfa_out <-
 n_factors <- parse_number(cfa_out$Model[1])
 ```
 
-The results show that `r n_factors` factors are best for our data. Now we compute a latent variable exploratory factor analysis (EFA) using `r n_factors` factors. We can visualise the output in a scatterplot, showing how responses to questions about the Principles cluster together. 
+The results confirm that `r n_factors` factors are best for our data. Now we compute a latent variable exploratory factor analysis (EFA) using `r n_factors` factors. We can visualise the output in a scatterplot, showing how responses to questions about the Principles cluster together. 
 
 ```{r}
 # latent variable exploratory factor analysis (EFA)
@@ -223,6 +257,11 @@ efa_model_params <- efa %>%
                    )
 
 # efa_model_params
+```
+
+### Exploratory Factor Analysis
+
+```{r}
 
 # watch out for different sorting in efa and efa_model_params
 efa_tbl <- 
@@ -231,7 +270,10 @@ tibble(mr1 = efa$loadings[,1],
        var = efa_model_params$Variable,
        # the percentage of variance that can be
        # explained by the retained factors
-       comms = efa$communalities,
+       # https://www.geo.fu-berlin.de/en/v/soga/Geodata-analysis/factor-analysis/A-simple-example-of-FA/index.html
+       #  the fraction of the variable’s total 
+       # variance explained by the factor 
+       communalities = efa$communalities,
        fac = ifelse(!is.na(efa_model_params$MR1), 1, 2))
 
 ## Generate a plot showing how the items load on each factor
@@ -243,21 +285,30 @@ ggplot(efa_tbl) +
   aes(mr1,
       mr2,
       label = var,
-      size = comms,
+      size = communalities,
       colour = as.factor(fac)) +
   geom_point() +
   geom_text_repel(size = 6, 
-                  force = 30) +
+                  nudge_x = 0.05,
+                  nudge_y = 0.05,
+                  segment.colour = "grey80",
+                  force = 50) +
   theme_minimal(base_size = 14)  +
   labs(x = "Minimum residual 1",
        y = "Minimum residual 2") +
-  guides(colour = FALSE,
-         size = FALSE) +
+  theme(legend.position = c(0.8, 0.9)) +
+  guides(colour = FALSE) +
   coord_equal()
 
-efa_plot
+# efa_plot
 ```
 
+The plot on the left shows a path diagram representation. The square boxes are the observed variables, and the ovals are the unobserved, latent factors. The straight arrows are the loadings, the correlation between the factor and the observed variable(s). This helps us to identify which item belong in which factor, and the strength of its contribution. 
+
+Factor loading can be classified based on their magnitude.
+* 0.50 or more - Practically significant
+* 0.40 to 0.49 - More important
+* 0.30 to 0.39 - Minimum consideration level
 
 ```{r}
 library(patchwork)
@@ -267,18 +318,11 @@ library(patchwork)
   
 ```
 
-The square boxes are the observed variables, and the ovals are the unobserved factors. The straight arrows are the loadings, the correlation between the factor and the observed variable(s).
-
-Identify which item belong in which factor
-
-Factor loading can be classified based on their magnitude.
-* 0.50 or more - Practically significant
-* 0.40 to 0.49 - More important
-* 0.30 to 0.39 - Minimum consideration level
 
 
 
-```{r}
+
+```{r eval = FALSE}
 library(DandEFA)
 
 facl <- 
@@ -295,7 +339,7 @@ dandelion(facl,
           )
 ```
 
-```{r}
+```{r eval = FALSE}
   
  (how_many +  efa_plot) /
  wrap_elements( ~dandelion(facl, bound = 0.5, mcex=c(1,1), rev(rainbow(100, start = 0, end = 0.2))) ) +
