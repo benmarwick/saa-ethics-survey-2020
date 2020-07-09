@@ -1,0 +1,223 @@
+---
+title: "Planning the Qualitative Data Analysis of the Survey for the Revision of the SAA's Principles of Archaeological Ethics"
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+output: 
+  bookdown::html_document2:
+  number_sections: false
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE,
+                      message = FALSE,
+                      warning = FALSE,
+                      fig.retina = 2)
+```
+
+```{r load-pkgs}
+library(tidyverse)
+```
+
+```{r load-data}
+survey_data <- 
+  readr::read_csv("data/raw-data/Data Pull 06-10-20 CSV.csv",
+                  locale = readr::locale(encoding = "latin1")) %>% 
+  select(-starts_with("X"))
+
+# names from the first data pull only
+# saveRDS(names(survey_data), here::here("data/derived-data/column-names.rds"))
+
+# get col names from first data pull
+saved_names <- readRDS(here::here("data/derived-data/column-names.rds"))
+
+# only keep cols that are in the first data pull
+survey_data <- 
+  survey_data %>% 
+  select(saved_names)
+
+# to easily browse the questions:
+survey_questions_tbl <- tibble(questions = names(survey_data))
+survey_questions_vec <- names(survey_data)
+
+# to easily browse the questions:
+survey_questions_tbl <- tibble(questions = names(survey_data))
+survey_questions_vec <- names(survey_data)
+single_response <- c(4, 5, 35, 44, 46, 47, 49, 50, 52, 53, 55)
+multiple_response <- c(6, 7, 42, 54)
+likert <- str_which(survey_questions_vec, "^Principle")
+likert_general <- str_which(survey_questions_vec, "^The SAA Principles of Ethics")
+```
+
+
+Get only the free text reponses...
+
+```{r}
+free_text <- 
+  survey_data %>% 
+  select("How have you used the SAA Principles of Ethics? Please check all that apply. - Other - Text",
+         "Please feel free to elaborate on your answer here:" ,
+         "What do you see as being the primary ethical concerns in the field today?",
+         "Please elaborate here:",       # Principle 1: Stewardship
+         "Please elaborate here:_1",     # Principle 2: Accountability
+         "Please elaborate here:_2",     # Principle 3: Commercialization
+         "Please elaborate here:_3",     # Principle 4: Public Education
+         "Please elaborate here:_4",     # Principle 5: Intellectual Property
+         "Please elaborate here:_5",     # Principle 6: Public Reporting 
+         "Please elaborate here:_6",     # Principle 7: Records and Preservation
+         "Please elaborate here:_7",     # Principle 8: Training and Resources
+         "Please elaborate here:_8",     # Principle 9: Safe Educational and Workplace Environments
+         "Please elaborate here:_9",     #  satisfactorily addresses ethical situations
+         "Please elaborate here:_10",    #  addresses ethical concerns in the country in which I work
+         "Please elaborate here:_11",    #  addresses ethical concerns in the sector in which I work
+         "Please elaborate here:_12",    #  additional ethical issues?
+         "Feel free to comment on these formats or suggest additional formats here:" # ethical documents
+         ) 
+
+free_text_short <- 
+stack(free_text) %>% 
+  as_tibble() %>% 
+  mutate(
+    question = case_when(
+         ind == "How have you used the SAA Principles of Ethics? Please check all that apply. - Other - Text" ~ "how used",
+         ind == "Please feel free to elaborate on your answer here:" ~ "other codes",
+         ind == "What do you see as being the primary ethical concerns in the field today?" ~ "primary concerns",
+         ind == "Please elaborate here:" ~ "Principle 1: Stewardship",
+         ind == "Please elaborate here:_1"  ~ "Principle 2: Accountability",
+         ind == "Please elaborate here:_2"  ~ "Principle 3: Commercialization",
+         ind == "Please elaborate here:_3"  ~ "Principle 4: Public Education",
+         ind == "Please elaborate here:_4"  ~ "Principle 5: Intellectual Property",
+         ind == "Please elaborate here:_5"  ~ "Principle 6: Public Reporting ",
+         ind == "Please elaborate here:_6"  ~ "Principle 7: Records and Preservation",
+         ind == "Please elaborate here:_7"  ~ "Principle 8: Training and Resources",
+         ind == "Please elaborate here:_8"  ~ "Principle 9: Safe Environments",
+         ind == "Please elaborate here:_9"  ~ "addresses ethical situations",
+         ind == "Please elaborate here:_10" ~ "addresses ethical concerns in country",
+         ind == "Please elaborate here:_11" ~ "addresses ethical concerns in  sector",
+         ind == "Please elaborate here:_12" ~ "additional ethical issues?",
+         ind == "Feel free to comment on these formats or suggest additional formats here:" ~  "ethical documents",
+         TRUE ~ "other"
+         ))
+```
+
+How many words per free text response? 
+
+```{r}
+free_text_short_sum <- 
+free_text_short %>% 
+  mutate(word_count = str_count(values)) %>% 
+  group_by(question) %>% 
+  summarise(word_count_sum = sum(word_count, na.rm = TRUE)) %>% 
+  mutate(hours = round(word_count_sum / 200 / 60, 1))
+
+knitr::kable(free_text_short_sum)
+
+library(DT)
+datatable(free_text_short_sum)
+```
+
+We can read about 200 words per minute. So we have about `r sum(free_text_short_sum$hours)` hours of reading to do. 
+
+```{r}
+ggplot(free_text_short_sum) +
+  aes(word_count_sum, 
+      reorder(str_wrap(question, 20), word_count_sum)) +
+  geom_col() +
+  scale_x_continuous(labels = scales::comma) +
+  theme_bw(base_size = 12)
+```
+
+
+We have $2500 and four people on our team
+
+```{r}
+budget <- 2500
+people <- 4
+pay_rate_hour <- 20
+
+
+dollars_per_person <- budget / people
+
+hours_per_person <- dollars_per_person / pay_rate_hour
+
+total_hours <- hours_per_person * people
+```
+
+Output each question to a HTML file, one column table
+
+
+```{r}
+
+oldnames =   c("How have you used the SAA Principles of Ethics? Please check all that apply. - Other - Text",
+         "Please feel free to elaborate on your answer here:" ,
+         "What do you see as being the primary ethical concerns in the field today?",
+         "Please elaborate here:",       # Principle 1: Stewardship
+         "Please elaborate here:_1",     # Principle 2: Accountability
+         "Please elaborate here:_2",     # Principle 3: Commercialization
+         "Please elaborate here:_3",     # Principle 4: Public Education
+         "Please elaborate here:_4",     # Principle 5: Intellectual Property
+         "Please elaborate here:_5",     # Principle 6: Public Reporting 
+         "Please elaborate here:_6",     # Principle 7: Records and Preservation
+         "Please elaborate here:_7",     # Principle 8: Training and Resources
+         "Please elaborate here:_8",     # Principle 9: Safe Educational and Workplace Environments
+         "Please elaborate here:_9",     #  satisfactorily addresses ethical situations
+         "Please elaborate here:_10",    #  addresses ethical concerns in the country in which I work
+         "Please elaborate here:_11",    #  addresses ethical concerns in the sector in which I work
+         "Please elaborate here:_12",    #  additional ethical issues?
+         "Feel free to comment on these formats or suggest additional formats here:" # ethical documents
+)
+
+
+newnames = c(
+          "how used",
+          "other codes",
+          "primary concerns",
+        "Principle 1: Stewardship",
+         "Principle 2: Accountability",
+         "Principle 3: Commercialization",
+         "Principle 4: Public Education",
+         "Principle 5: Intellectual Property",
+         "Principle 6: Public Reporting ",
+         "Principle 7: Records and Preservation",
+         "Principle 8: Training and Resources",
+         "Principle 9: Safe Environments",
+         "addresses ethical situations",
+         "addresses ethical concerns in country",
+         "addresses ethical concerns in  sector",
+         "additional ethical issues?",
+         "ethical documents"
+         )
+
+# output each column into a HTML
+free_text_relabel <- 
+  free_text %>% 
+  rename_at(vars(oldnames), ~ newnames)
+
+for(i in seq_len(ncol(free_text_relabel))){
+   write.table(free_text_relabel[,i], 
+         row.names = FALSE,
+         file=paste0("data/derived-data/", 
+                    names(free_text_relabel)[i], 
+                    ".txt"))
+}
+
+
+
+# html looks nice but taguette can't display nicely
+library("xtable")
+
+for(i in seq_len(ncol(free_text_relabel))){
+   print(xtable(free_text_relabel[,i]), 
+         type="html", 
+        file=paste0("data/derived-data/", 
+                    names(free_text_relabel)[i], 
+                    ".html"))
+}
+
+
+
+
+```
+
+
+
+
+

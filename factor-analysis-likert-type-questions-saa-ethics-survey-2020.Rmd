@@ -1,0 +1,304 @@
+---
+title: "Factor Analysis of Likert-type Questions in the Survey for the Revision of the SAA's Principles of Archaeological Ethics"
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+output: 
+  bookdown::html_document2:
+  number_sections: false
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE,
+                      message = FALSE,
+                      warning = FALSE,
+                      fig.retina = 2)
+# working from https://pubs.acs.org.sci-hub.se/doi/pdfplus/10.1021/bk-2017-1260.ch007
+```
+
+```{r}
+library(psych)
+library(tidyverse)
+library(likert)
+library(knitr)
+library(patchwork)
+```
+
+A factor analysis is a model of the measurement of one or more latent variables. This latent variable cannot be directly measured with a single variable (e.g. intelligence, social anxiety, soil health). Instead, it is seen through the relationships it causes in a set of outcome variables.
+
+```{r}
+survey_data <- 
+  readr::read_csv("data/raw-data/Data Pull 06-10-20 CSV.csv") %>% 
+  select(-starts_with("X"))
+
+# names from the first data pull only
+# saveRDS(names(survey_data), here::here("data/derived-data/column-names.rds"))
+
+# get col names from first data pull
+saved_names <- readRDS(here::here("data/derived-data/column-names.rds"))
+
+# only keep cols that are in the first data pull
+survey_data <- 
+  survey_data %>% 
+  select(saved_names)
+
+# to easily browse the questions:
+survey_questions_tbl <- tibble(questions = names(survey_data))
+survey_questions_vec <- names(survey_data)
+
+# to easily browse the questions:
+likert <- str_which(survey_questions_vec, "^Principle")
+likert_general <- str_which(survey_questions_vec, "^The SAA Principles of Ethics")
+```
+
+We focus on the questions about the nine Principles and the Likert-type responses. 
+
+```{r}
+  mylevels <- c('Strongly Disagree', 'Disagree', 'Neutral', 'Agree', 'Strongly Agree')
+  
+  output_with_ID <- 
+  survey_data %>% 
+  select(!!likert,  
+         # variables we may want to group by 
+         `Response ID`,
+         `Are you a current SAA member?`) %>% 
+  drop_na() %>% 
+  mutate_at(vars(-`Response ID`,
+                 -`Are you a current SAA member?`), 
+            ~factor(., levels=mylevels)) 
+  
+  output <- 
+  output_with_ID %>% 
+  select(-`Response ID`,
+         -`Are you a current SAA member?`) %>% 
+  as.data.frame()
+  
+  long_names <- names(output)
+  short_names  <- str_extract(names(output), ".*\\d")
+  short_principles <- 
+    c("Stewardship",
+      "Accountability",
+      "Commercialization",
+      "Public Education",
+      "Intellectual Property",
+      "Public Reporting",
+      "Records and Preservation",
+      "Training and Resources",
+      "Safe Educational and Workplace"
+      )
+  
+names(output) <- str_remove_all(short_principles, " ")
+```
+
+## Testing the assumptions for Factor Analysis
+
+We assume that there are at least some correlations among the variables so that coherent factors can be identified. There should be some degree of collinearity among the variables but not an extreme degree or singularity among the variables.
+
+We explore our data to see if they are suitable for factor analysis. These tests check to see whether our matrix is significantly different from an identity matrix.
+
+```{r}
+# test the dataset for factor analysis suitability. Two existing methods are the Bartlett’s Test of Sphericity and the Kaiser, Meyer, Olkin (KMO) Measure of Sampling Adequacy (MSA).
+
+# The former tests whether a matrix is significantly different from an identity matrix.
+
+# https://easystats.github.io/parameters/articles/efa_cfa.html
+library(tidyverse)
+library(parameters)
+library(psych)
+
+# Check factor structure
+check_fs <- check_factorstructure(data.matrix(output))
+
+msg <-  str_remove_all(attr(check_fs, "text"), "-")
+
+check_fs
+```
+
+We explore the structure in the data using a hierarchical cluster analysis where distances are calculated using polychoric correlation. This is a correlation method for ordinal responses such as likert-type data where we don't know the exact distances between each measurement unit. For example, is the difference between "Strongly Agree" and "Agree" the same is the difference between "Disagree" and "Strongly Disagree"? Are these distances the same for each person? We don't know. 
+
+```{r iclust-eda}
+# hierarchical cluster analysis 
+# https://cran.r-project.org/web/packages/psychTools/vignettes/factor.pdf
+library(psych)
+r.poly <- polychoric(data.matrix(output)) 
+ic.poly <- 
+  iclust(r.poly$rho,
+         title = "")
+iclust.diagram(ic.poly, 
+               main = "",
+               cex = 0.75)
+```
+
+
+
+We explore to see how many latent factors are present in our data. 
+
+```{r}
+# How many factors to retain in Factor Analysis 
+n <- n_factors(data.matrix(output))
+
+# https://www.uwo.ca/fhs/tc/labs/10.FactorAnalysis.pdf
+# fa.parallel(data.matrix(output))
+# https://cran.r-project.org/web/packages/psychTools/vignettes/factor.pdf
+# nfactors(data.matrix(output))
+
+library(see)
+library(ggtext)
+how_many <- plot(n) + 
+   geom_textbox(data = tibble(x = 5, 
+                              y = 0.3, 
+                              label = (msg), 
+                              fill = NA),
+                aes(label = label),
+                width = unit(0.55, "npc")) +
+  labs(title = "" ) +
+  theme_modern() # maybe 2?
+
+# how_many
+```
+
+We use Confirmatory Factor Analysis (CFA) to evaluate several models of our data using different numbers of latent factors. This will help us make a good choice the best number of factors to extract. 
+
+```{r}
+# How can we statistically test if that’s actually the case? This can be done using Confirmatory Factor Analysis (CFA), that bridges factor analysis with Structural Equation Modelling (SEM).
+
+# https://easystats.github.io/parameters/articles/efa_cfa.html
+# Partition the data
+partitions <- 
+  data_partition(data.matrix(output), 
+                 training_proportion = 0.7)
+
+training <- partitions$training
+test <- partitions$test
+
+structure_1 <- psych::fa(training, nfactors = 1) %>% 
+  efa_to_cfa()
+structure_2 <- psych::fa(training, nfactors = 2)  %>% 
+  efa_to_cfa()
+structure_3 <- psych::fa(training, nfactors = 3)  %>% 
+  efa_to_cfa()
+structure_4 <- psych::fa(training, nfactors = 4)  %>% 
+  efa_to_cfa()
+
+# Investigate how a model looks
+# structure_1
+# structure_2
+# structure_3
+
+library(lavaan)
+library(performance)
+
+# Fit and Compare models
+f1 <- lavaan::cfa(structure_1, data = test)
+f2 <- lavaan::cfa(structure_2, data = test)
+f3 <- lavaan::cfa(structure_3, data = test)
+f4 <- lavaan::cfa(structure_4, data = test)
+
+cfa_out <- 
+ compare_performance(f1, f2, f3, f4, rank = TRUE)
+# 2 seem best, store top ranked number of factors for later
+n_factors <- parse_number(cfa_out$Model[1])
+```
+
+The results show that `r n_factors` factors are best for our data. Now we compute a latent variable exploratory factor analysis (EFA) using `r n_factors` factors. We can visualise the output in a scatterplot, showing how responses to questions about the Principles cluster together. 
+
+```{r}
+# latent variable exploratory factor analysis (EFA)
+# Fit an EFA with 2 factors
+efa <- psych::fa(data.matrix(output), 
+                 # https://rpubs.com/ranvirkumarsah/Intro2PCA_EFA
+                 rotate = "oblimin",
+                 nfactors = n_factors,
+                 cor="poly") 
+
+# MR1 and MR2 scores per respondent in dim(efa$scores)
+# could be useful for modelling with other variables
+# same as dim(output)
+
+# fa.diagram(efa)
+# cor.plot(efa, numbers=TRUE)
+
+efa_model_params <- efa %>% 
+  model_parameters(
+                  threshold = "max", 
+                   digits = 3
+                   )
+
+# efa_model_params
+
+# watch out for different sorting in efa and efa_model_params
+efa_tbl <- 
+tibble(mr1 = efa$loadings[,1],
+       mr2 = efa$loadings[,2],
+       var = efa_model_params$Variable,
+       # the percentage of variance that can be
+       # explained by the retained factors
+       comms = efa$communalities,
+       fac = ifelse(!is.na(efa_model_params$MR1), 1, 2))
+
+## Generate a plot showing how the items load on each factor
+
+library(ggrepel)
+
+efa_plot <- 
+ggplot(efa_tbl) +
+  aes(mr1,
+      mr2,
+      label = var,
+      size = comms,
+      colour = as.factor(fac)) +
+  geom_point() +
+  geom_text_repel(size = 6, 
+                  force = 30) +
+  theme_minimal(base_size = 14)  +
+  labs(x = "Minimum residual 1",
+       y = "Minimum residual 2") +
+  guides(colour = FALSE,
+         size = FALSE) +
+  coord_equal()
+
+efa_plot
+```
+
+
+```{r}
+library(patchwork)
+
+ wrap_plots( wrap_elements( ~fa.diagram(efa)), efa_plot) + 
+    plot_annotation(tag_levels = 'A') 
+  
+```
+
+The square boxes are the observed variables, and the ovals are the unobserved factors. The straight arrows are the loadings, the correlation between the factor and the observed variable(s).
+
+Identify which item belong in which factor
+
+Factor loading can be classified based on their magnitude.
+* 0.50 or more - Practically significant
+* 0.40 to 0.49 - More important
+* 0.30 to 0.39 - Minimum consideration level
+
+
+
+```{r}
+library(DandEFA)
+
+facl <- 
+factload(data.matrix(output),
+         nfac=2,
+         method="pc",
+         cormeth="polycor")
+
+dandelion(facl, 
+          bound = 0.5, 
+          mcex=c(1, 1),
+          # rev(rainbow(100, start = 0, end = 0.2))
+           viridis::cividis(2) 
+          )
+```
+
+```{r}
+  
+ (how_many +  efa_plot) /
+ wrap_elements( ~dandelion(facl, bound = 0.5, mcex=c(1,1), rev(rainbow(100, start = 0, end = 0.2))) ) +
+    plot_annotation(tag_levels = 'A') 
+```
+
