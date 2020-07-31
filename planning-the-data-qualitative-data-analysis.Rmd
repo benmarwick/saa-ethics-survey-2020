@@ -212,10 +212,229 @@ for(i in seq_len(ncol(free_text_relabel))){
                     ".html"))
 }
 
+```
 
+Take a look at the tagged text
 
+```{r}
+tagged_files <- list.files(here::here("data/tagged-text"), 
+                           full.names = TRUE,
+                           # only use the most recent export
+                           pattern = "3")
+
+library(rvest)
+library(qdapRegex)
+
+tidy_tags <- function(x){
+  a1 <- 
+read_lines(x ) %>% 
+  str_squish() %>% 
+  paste0(collapse = ", ") %>% 
+  strsplit("<hr>", fixed=TRUE)
+
+txt <- ex_between(a1, "<p>", "<strong>")[[1]] %>% 
+  str_remove_all("</p>, <p>,")
+doc <- ex_between(a1, "<strong>Document:</strong>", "<strong>Tags:")[[1]]
+tag <- ex_between(a1, "<strong>Tags:</strong>", "</p>")[[1]] %>% 
+  str_replace_all(",+", ",") %>% 
+  str_remove_all( ",\\s*$") %>% 
+  str_remove_all( "^,")  %>% 
+  str_remove_all( ", ,") %>% 
+  str_remove_all( ", $") %>% 
+  str_squish()
+  
+tibble(txt = txt,
+       tag = tag,
+       doc = doc)
+}
+
+out_all <- 
+map_df(tagged_files, 
+       tidy_tags)
+
+principle_tags <- 
+  out_all %>% 
+  filter(str_detect(doc, "Principle")) %>%
+  separate_rows(tag, sep = ", ") %>% 
+  mutate(tag = str_squish(tag)) %>% 
+  mutate(doc = str_remove_all(doc, "_|\\.txt|,|\\(1\\)"))
+```
+
+Frequency of each tag for all responses for each Principle
+
+```{r}
+principle_tags %>% 
+  group_by(doc, tag) %>% 
+  tally %>% 
+  ggplot() +
+  aes(tag, 
+      n) +
+  geom_col() +
+  facet_wrap(~doc) +
+  coord_flip() +
+  theme_bw(base_size = 6)
+```
+
+Tag correlation for each Principle
+
+```{r}
+V <- 
+out_all %>% 
+  filter(str_detect(doc, "Principle")) %>% 
+  filter(str_detect(tag, ",")) %>% 
+    separate_rows(tag, sep = ", ")  %>% 
+  select(txt, tag) %>% 
+    mutate(txt = tolower(str_squish(txt))) %>% 
+    mutate(tag = tolower(str_squish(tag))) 
+
+V1 <- crossprod(table(V))
+diag(V1) <- 0
+# heatmap(V1)
+
+V1[lower.tri(V1)] <- NA
+
+V2 <- 
+V1 %>% 
+  as.data.frame() %>%
+  rownames_to_column("tag") %>%
+  pivot_longer(-c(tag),
+               names_to = "samples",
+               values_to = "counts") %>% 
+  mutate(samples = tolower(str_squish(samples))) %>% 
+  mutate(tag = tolower(str_squish(tag))) %>% 
+  group_by(tag, samples) %>% 
+  summarise(n_sum = sum(counts))
+
+V2 %>% 
+  ggplot(aes(x = samples,
+             y = tag,
+             fill = n_sum)) +
+  geom_tile(color = "white") +
+  scale_fill_viridis_c(
+    na.value = 'white',
+    begin = 1,
+    end = 0,
+    name = "Co-occurance\ncount"
+  ) +
+  theme_minimal() +
+  theme(axis.text.x = element_text(
+    angle = 90,
+    vjust = 0.5,
+    size = 6,
+    hjust = 1
+  ),
+    axis.text.y = element_text(
+    angle = 0,
+    vjust = 1,
+    size = 6,
+    hjust = 1
+  )
+  ) +
+  labs(x = "", 
+       y = "") +
+  coord_fixed()
 
 ```
+
+Other questions not directly about the Principles: 
+
+- Addresses ethical concerns in various contexts
+- primary concerns
+- how used
+- other codes 
+
+
+```{r}
+addresses_tags <- 
+  out_all %>% 
+  filter(str_detect(doc, "addresses")) %>%
+  separate_rows(tag, sep = ", ") %>% 
+  mutate(tag = tolower(str_squish(tag))) %>% 
+  mutate(doc = tolower(str_squish(str_remove_all(doc, "_|\\.txt|,|\\(1\\)"))))
+
+addresses_tags %>% 
+  group_by(doc, tag) %>% 
+  tally %>% 
+  ggplot() +
+  aes(tag, 
+      n) +
+  geom_col() +
+  facet_wrap(~doc) +
+  coord_flip() +
+  theme_bw(base_size = 10)
+
+```
+
+```{r}
+primary_concerns_tags <- 
+  out_all %>% 
+  filter(str_detect(doc, "primary"))  %>% 
+  separate_rows(tag, sep = ", ") %>% 
+  mutate(tag = tolower(str_squish(tag))) %>% 
+  mutate(doc = tolower(str_squish(str_remove_all(doc, "_|\\.txt|,|\\(1\\)"))))
+
+primary_concerns_tags %>% 
+  group_by(doc, 
+           tag) %>% 
+  tally %>% 
+  ggplot() +
+  aes(reorder(tag, n), 
+      n) +
+  geom_col() +
+  xlab("Primary concern") +
+  coord_flip() +
+  theme_bw(base_size = 10)
+```
+
+```{r}
+how_used_tags <- 
+  out_all %>% 
+  filter(str_detect(doc, "how used"))  %>% 
+  separate_rows(tag, sep = ", ") %>% 
+  mutate(tag = tolower(str_squish(tag))) %>% 
+  mutate(doc = tolower(str_squish(str_remove_all(doc, "_|\\.txt|,|\\(1\\)"))))
+
+how_used_tags %>% 
+  group_by(doc, 
+           tag) %>% 
+  tally %>% 
+  ggplot() +
+  aes(reorder(tag, n), 
+      n) +
+  geom_col() +
+  xlab("How used") +
+  coord_flip() +
+  theme_bw(base_size = 12)
+```
+
+
+```{r}
+# other codes
+
+# other_codes <- read_csv("data/derived-data/other-codes.csv", skip = 3)
+
+other_codes_tags <- 
+  out_all %>% 
+  filter(str_detect(doc, "other codes"))  %>% 
+  separate_rows(tag, sep = ", ") %>% 
+  mutate(tag = tolower(str_squish(tag))) %>% 
+  mutate(doc = tolower(str_squish(str_remove_all(doc, "_|\\.txt|,|\\(1\\)"))))
+
+other_codes_tags %>% 
+  group_by(doc, 
+           tag) %>% 
+  tally %>% 
+  ggplot() +
+  aes(reorder(tag, n), 
+      n) +
+  geom_col() +
+  xlab("Other codes") +
+  coord_flip() +
+  theme_bw(base_size = 12)
+
+```
+
+
 
 
 

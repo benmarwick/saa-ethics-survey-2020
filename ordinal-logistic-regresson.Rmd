@@ -1,0 +1,116 @@
+---
+title: "Regression models"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r load-pkgs}
+library(MASS)
+library(tidyverse)
+library(knitr)
+library(patchwork)
+```
+
+```{r load-data}
+survey_data <- 
+  readr::read_csv("data/raw-data/Data Pull 06-10-20 CSV.csv") %>% 
+  select(-starts_with("X"))
+
+# names from the first data pull only
+# saveRDS(names(survey_data), here::here("data/derived-data/column-names.rds"))
+
+# get col names from first data pull
+saved_names <- readRDS(here::here("data/derived-data/column-names.rds"))
+
+# only keep cols that are in the first data pull
+survey_data <- 
+  survey_data %>% 
+  select(all_of(saved_names))
+
+# to easily browse the questions:
+survey_questions_tbl <- tibble(questions = names(survey_data))
+survey_questions_vec <- names(survey_data)
+
+# to easily browse the questions:
+survey_questions_tbl <- tibble(questions = names(survey_data))
+survey_questions_vec <- names(survey_data)
+single_response <- c(4, 5, 35, 44, 46, 47, 49, 50, 52, 53, 55)
+multiple_response <- c(6, 7, 42, 54)
+likert <- str_which(survey_questions_vec, "^Principle")
+likert_general <- str_which(survey_questions_vec, "^The SAA Principles of Ethics")
+
+# simplify column names
+names(survey_data) <- str_trunc( base::make.names(names(survey_data)),  50)
+
+```
+
+
+
+```{r}
+# demo vars
+demographic_vars <- 
+  survey_data[, c(45:47, 49:50, 52:53, 55) ] %>% 
+  mutate_all(as.factor) %>% 
+  drop_na
+
+cats = apply(demographic_vars, 2, function(x) nlevels(as.factor(x)))
+
+require(FactoMineR)
+require(ggplot2)
+
+# apply MCA
+mca1 = MCA(as.data.frame(demographic_vars), 
+           graph = FALSE)
+
+# list of results
+mca1
+
+# data frame with variable coordinates
+mca1_vars_df = 
+  data.frame(mca1$var$coord,
+             Variable = rep(names(cats), cats))
+
+# data frame with observation coordinates
+mca1_obs_df = data.frame(mca1$ind$coord)
+
+# plot of variable categories
+ggplot(data=mca1_vars_df, 
+       aes(x = Dim.1, y = Dim.2, label = rownames(mca1_vars_df))) +
+ geom_hline(yintercept = 0, colour = "gray70") +
+ geom_vline(xintercept = 0, colour = "gray70") +
+ geom_text(aes(colour=Variable)) +
+ ggtitle("MCA plot of variables using R package FactoMineR")
+
+# MCA plot of observations and categories
+ggplot(data = mca1_obs_df, aes(x = Dim.1, y = Dim.2)) +
+  geom_hline(yintercept = 0, colour = "gray70") +
+  geom_vline(xintercept = 0, colour = "gray70") +
+  geom_point(colour = "gray50", alpha = 0.7) +
+  geom_density2d(colour = "gray80") +
+  geom_text(data = mca1_vars_df, 
+            aes(x = Dim.1, 
+                y = Dim.2, 
+                label = rownames(mca1_vars_df), 
+                colour = Variable),
+            size = 2) +
+  ggtitle("MCA plot of variables using R package FactoMineR") +
+  scale_colour_discrete(name = "Variable")
+```
+
+
+```{r}
+
+## fit ordered logit model and store results 'm'
+m <- 
+  polr(`How many years have you worked in/with archaeology?` ~ pared + public + gpa, 
+       data = survey_data, 
+       Hess = TRUE)
+
+## view a summary of the model
+summary(m)
+
+```
+
