@@ -1,0 +1,401 @@
+---
+title: "Results of the Qualitative Data Analysis of the Survey for the Revision of the SAA's Principles of Archaeological Ethics"
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+output: 
+  bookdown::html_document2:
+  number_sections: false
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE,
+                      message = FALSE,
+                      warning = FALSE,
+                      fig.retina = 2)
+```
+
+```{r load-pkgs}
+library(tidyverse)
+```
+
+
+```{r load-data}
+survey_data <- 
+  readr::read_csv("data/raw-data/Data Pull 06-10-20 CSV.csv",
+                  locale = readr::locale(encoding = "latin1")) %>% 
+  select(-starts_with("X"))
+
+# names from the first data pull only
+# saveRDS(names(survey_data), here::here("data/derived-data/column-names.rds"))
+
+# get col names from first data pull
+saved_names <- readRDS(here::here("data/derived-data/column-names.rds"))
+
+# only keep cols that are in the first data pull
+survey_data <- 
+  survey_data %>% 
+  select(saved_names)
+
+# to easily browse the questions:
+survey_questions_tbl <- tibble(questions = names(survey_data))
+survey_questions_vec <- names(survey_data)
+
+# to easily browse the questions:
+survey_questions_tbl <- tibble(questions = names(survey_data))
+survey_questions_vec <- names(survey_data)
+single_response <- c(4, 5, 35, 44, 46, 47, 49, 50, 52, 53, 55)
+multiple_response <- c(6, 7, 42, 54)
+likert <- str_which(survey_questions_vec, "^Principle")
+likert_general <- str_which(survey_questions_vec, "^The SAA Principles of Ethics")
+```
+
+
+Get only the free text reponses...
+
+```{r}
+free_text <- 
+  survey_data %>% 
+  select("How have you used the SAA Principles of Ethics? Please check all that apply. - Other - Text",
+         "Please feel free to elaborate on your answer here:" ,
+         "What do you see as being the primary ethical concerns in the field today?",
+         "Please elaborate here:",       # Principle 1: Stewardship
+         "Please elaborate here:_1",     # Principle 2: Accountability
+         "Please elaborate here:_2",     # Principle 3: Commercialization
+         "Please elaborate here:_3",     # Principle 4: Public Education
+         "Please elaborate here:_4",     # Principle 5: Intellectual Property
+         "Please elaborate here:_5",     # Principle 6: Public Reporting 
+         "Please elaborate here:_6",     # Principle 7: Records and Preservation
+         "Please elaborate here:_7",     # Principle 8: Training and Resources
+         "Please elaborate here:_8",     # Principle 9: Safe Educational and Workplace Environments
+         "Please elaborate here:_9",     #  satisfactorily addresses ethical situations
+         "Please elaborate here:_10",    #  addresses ethical concerns in the country in which I work
+         "Please elaborate here:_11",    #  addresses ethical concerns in the sector in which I work
+         "Please elaborate here:_12",    #  additional ethical issues?
+         "Feel free to comment on these formats or suggest additional formats here:" # ethical documents
+         ) 
+
+free_text_short <- 
+stack(free_text) %>% 
+  as_tibble() %>% 
+  mutate(
+    question = case_when(
+         ind == "How have you used the SAA Principles of Ethics? Please check all that apply. - Other - Text" ~ "how used",
+         ind == "Please feel free to elaborate on your answer here:" ~ "other codes",
+         ind == "What do you see as being the primary ethical concerns in the field today?" ~ "primary concerns",
+         ind == "Please elaborate here:" ~ "Principle 1: Stewardship",
+         ind == "Please elaborate here:_1"  ~ "Principle 2: Accountability",
+         ind == "Please elaborate here:_2"  ~ "Principle 3: Commercialization",
+         ind == "Please elaborate here:_3"  ~ "Principle 4: Public Education",
+         ind == "Please elaborate here:_4"  ~ "Principle 5: Intellectual Property",
+         ind == "Please elaborate here:_5"  ~ "Principle 6: Public Reporting ",
+         ind == "Please elaborate here:_6"  ~ "Principle 7: Records and Preservation",
+         ind == "Please elaborate here:_7"  ~ "Principle 8: Training and Resources",
+         ind == "Please elaborate here:_8"  ~ "Principle 9: Safe Environments",
+         ind == "Please elaborate here:_9"  ~ "addresses ethical situations",
+         ind == "Please elaborate here:_10" ~ "addresses ethical concerns in country",
+         ind == "Please elaborate here:_11" ~ "addresses ethical concerns in  sector",
+         ind == "Please elaborate here:_12" ~ "additional ethical issues?",
+         ind == "Feel free to comment on these formats or suggest additional formats here:" ~  "ethical documents",
+         TRUE ~ "other"
+         ))
+```
+
+
+Output each question to a HTML file, one column table
+
+
+```{r}
+
+oldnames =   c("How have you used the SAA Principles of Ethics? Please check all that apply. - Other - Text",
+         "Please feel free to elaborate on your answer here:" ,
+         "What do you see as being the primary ethical concerns in the field today?",
+         "Please elaborate here:",       # Principle 1: Stewardship
+         "Please elaborate here:_1",     # Principle 2: Accountability
+         "Please elaborate here:_2",     # Principle 3: Commercialization
+         "Please elaborate here:_3",     # Principle 4: Public Education
+         "Please elaborate here:_4",     # Principle 5: Intellectual Property
+         "Please elaborate here:_5",     # Principle 6: Public Reporting 
+         "Please elaborate here:_6",     # Principle 7: Records and Preservation
+         "Please elaborate here:_7",     # Principle 8: Training and Resources
+         "Please elaborate here:_8",     # Principle 9: Safe Educational and Workplace Environments
+         "Please elaborate here:_9",     #  satisfactorily addresses ethical situations
+         "Please elaborate here:_10",    #  addresses ethical concerns in the country in which I work
+         "Please elaborate here:_11",    #  addresses ethical concerns in the sector in which I work
+         "Please elaborate here:_12",    #  additional ethical issues?
+         "Feel free to comment on these formats or suggest additional formats here:" # ethical documents
+)
+
+
+newnames = c(
+          "how used",
+          "other codes",
+          "primary concerns",
+        "Principle 1: Stewardship",
+         "Principle 2: Accountability",
+         "Principle 3: Commercialization",
+         "Principle 4: Public Education",
+         "Principle 5: Intellectual Property",
+         "Principle 6: Public Reporting ",
+         "Principle 7: Records and Preservation",
+         "Principle 8: Training and Resources",
+         "Principle 9: Safe Environments",
+         "addresses ethical situations",
+         "addresses ethical concerns in country",
+         "addresses ethical concerns in  sector",
+         "additional ethical issues?",
+         "ethical documents"
+         )
+
+# output each column into a HTML
+free_text_relabel <- 
+  free_text %>% 
+  rename_at(vars(oldnames), ~ newnames)
+
+for(i in seq_len(ncol(free_text_relabel))){
+   write.table(free_text_relabel[,i], 
+         row.names = FALSE,
+         file=paste0("data/derived-data/", 
+                    names(free_text_relabel)[i], 
+                    ".txt"))
+}
+
+
+
+# html looks nice but taguette can't display nicely
+library("xtable")
+
+for(i in seq_len(ncol(free_text_relabel))){
+   print(xtable(free_text_relabel[,i]), 
+         type="html", 
+        file=paste0("data/derived-data/", 
+                    names(free_text_relabel)[i], 
+                    ".html"))
+}
+
+```
+
+Take a look at the tagged text
+
+```{r}
+tagged_files <- list.files(here::here("data/tagged-text"), 
+                           full.names = TRUE,
+                           # only use the most recent export
+                           pattern = "3")
+
+library(rvest)
+library(qdapRegex)
+
+tidy_tags <- function(x){
+  a1 <- 
+read_lines(x ) %>% 
+  str_squish() %>% 
+  paste0(collapse = ", ") %>% 
+  strsplit("<hr>", fixed=TRUE)
+
+txt <- ex_between(a1, "<p>", "<strong>")[[1]] %>% 
+  str_remove_all("</p>, <p>,")
+doc <- ex_between(a1, "<strong>Document:</strong>", "<strong>Tags:")[[1]]
+tag <- ex_between(a1, "<strong>Tags:</strong>", "</p>")[[1]] %>% 
+  str_replace_all(",+", ",") %>% 
+  str_remove_all( ",\\s*$") %>% 
+  str_remove_all( "^,")  %>% 
+  str_remove_all( ", ,") %>% 
+  str_remove_all( ", $") %>% 
+  str_squish()
+  
+tibble(txt = txt,
+       tag = tag,
+       doc = doc)
+}
+
+out_all <- 
+map_df(tagged_files, 
+       tidy_tags)
+
+principle_tags <- 
+  out_all %>% 
+  filter(str_detect(doc, "Principle")) %>%
+  separate_rows(tag, sep = ", ") %>% 
+  mutate(tag = str_squish(tag)) %>% 
+  mutate(doc = str_remove_all(doc, "_|\\.txt|,|\\(1\\)"))
+```
+
+Frequency of each tag for all responses for each Principle
+
+```{r}
+principle_tags %>% 
+  group_by(doc, tag) %>% 
+  tally %>% 
+  ggplot() +
+  aes(tag, 
+      n) +
+  geom_col() +
+  facet_wrap(~doc) +
+  coord_flip() +
+  theme_bw(base_size = 6)
+```
+
+Tag correlation for each Principle
+
+```{r}
+V <- 
+out_all %>% 
+  filter(str_detect(doc, "Principle")) %>% 
+  filter(str_detect(tag, ",")) %>% 
+    separate_rows(tag, sep = ", ")  %>% 
+  select(txt, tag) %>% 
+    mutate(txt = tolower(str_squish(txt))) %>% 
+    mutate(tag = tolower(str_squish(tag))) 
+
+V1 <- crossprod(table(V))
+diag(V1) <- 0
+# heatmap(V1)
+
+V1[lower.tri(V1)] <- NA
+
+V2 <- 
+V1 %>% 
+  as.data.frame() %>%
+  rownames_to_column("tag") %>%
+  pivot_longer(-c(tag),
+               names_to = "samples",
+               values_to = "counts") %>% 
+  mutate(samples = tolower(str_squish(samples))) %>% 
+  mutate(tag = tolower(str_squish(tag))) %>% 
+  group_by(tag, samples) %>% 
+  summarise(n_sum = sum(counts))
+
+V2 %>% 
+  ggplot(aes(x = samples,
+             y = tag,
+             fill = n_sum)) +
+  geom_tile(color = "white") +
+  scale_fill_viridis_c(
+    na.value = 'white',
+    begin = 1,
+    end = 0,
+    name = "Co-occurance\ncount"
+  ) +
+  theme_minimal() +
+  theme(axis.text.x = element_text(
+    angle = 90,
+    vjust = 0.5,
+    size = 6,
+    hjust = 1
+  ),
+    axis.text.y = element_text(
+    angle = 0,
+    vjust = 1,
+    size = 6,
+    hjust = 1
+  )
+  ) +
+  labs(x = "", 
+       y = "") +
+  coord_fixed()
+
+```
+
+Other questions not directly about the Principles: 
+
+- Addresses ethical concerns in various contexts
+- primary concerns
+- how used
+- other codes 
+
+
+```{r}
+addresses_tags <- 
+  out_all %>% 
+  filter(str_detect(doc, "addresses")) %>%
+  separate_rows(tag, sep = ", ") %>% 
+  mutate(tag = tolower(str_squish(tag))) %>% 
+  mutate(doc = tolower(str_squish(str_remove_all(doc, "_|\\.txt|,|\\(1\\)"))))
+
+addresses_tags %>% 
+  group_by(doc, tag) %>% 
+  tally %>% 
+  ggplot() +
+  aes(tag, 
+      n) +
+  geom_col() +
+  facet_wrap(~doc) +
+  coord_flip() +
+  theme_bw(base_size = 10)
+
+```
+
+```{r}
+primary_concerns_tags <- 
+  out_all %>% 
+  filter(str_detect(doc, "primary"))  %>% 
+  separate_rows(tag, sep = ", ") %>% 
+  mutate(tag = tolower(str_squish(tag))) %>% 
+  mutate(doc = tolower(str_squish(str_remove_all(doc, "_|\\.txt|,|\\(1\\)"))))
+
+primary_concerns_tags %>% 
+  group_by(doc, 
+           tag) %>% 
+  tally %>% 
+  ggplot() +
+  aes(reorder(tag, n), 
+      n) +
+  geom_col() +
+  xlab("Primary concern") +
+  coord_flip() +
+  theme_bw(base_size = 10)
+```
+
+```{r}
+how_used_tags <- 
+  out_all %>% 
+  filter(str_detect(doc, "how used"))  %>% 
+  separate_rows(tag, sep = ", ") %>% 
+  mutate(tag = tolower(str_squish(tag))) %>% 
+  mutate(doc = tolower(str_squish(str_remove_all(doc, "_|\\.txt|,|\\(1\\)"))))
+
+how_used_tags %>% 
+  group_by(doc, 
+           tag) %>% 
+  tally %>% 
+  ggplot() +
+  aes(reorder(tag, n), 
+      n) +
+  geom_col() +
+  xlab("How used") +
+  coord_flip() +
+  theme_bw(base_size = 12)
+```
+
+
+```{r}
+# other codes
+
+# other_codes <- read_csv("data/derived-data/other-codes.csv", skip = 3)
+
+other_codes_tags <- 
+  out_all %>% 
+  filter(str_detect(doc, "other codes"))  %>% 
+  separate_rows(tag, sep = ", ") %>% 
+  mutate(tag = tolower(str_squish(tag))) %>% 
+  mutate(doc = tolower(str_squish(str_remove_all(doc, "_|\\.txt|,|\\(1\\)"))))
+
+other_codes_tags %>% 
+  group_by(doc, 
+           tag) %>% 
+  tally %>% 
+  ggplot() +
+  aes(reorder(tag, n), 
+      n) +
+  geom_col() +
+  xlab("Other codes") +
+  coord_flip() +
+  theme_bw(base_size = 12)
+
+```
+
+
+
+
+
+
+

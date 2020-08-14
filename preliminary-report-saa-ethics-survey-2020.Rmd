@@ -323,11 +323,35 @@ for(i in seq_len(nrow(other_orgs))){
     sum(str_count(other_codes_chr, t1), na.rm = TRUE)
 }
 
+# I did this to write the case_when code below
+# other_codes_csv <- read_csv("data/derived-data/other-codes.csv", skip = 3) %>% 
+#   select(-c(1:2))
+# 
+# 
+# other_codes_csv %>% 
+#   mutate(new_col1 = str_c("org_name == ", 
+#                          "'", str_remove_all(tolower(`Varient 1 (typical abbreviation)`), "[[:punct:]]"), "'", 
+#                          " ~ ", 
+#                          "'", tolower(`Varient 2 (full name)`), "'") )  %>% 
+#   mutate(new_col2 = str_c("org_name == ", 
+#                          "'", str_remove_all(tolower(`Varient 3`), "[[:punct:]]"), "'", 
+#                          " ~ ", 
+#                          "'", tolower(`Varient 2 (full name)`), "'") )  %>% 
+#   select(new_col1, new_col2) %>% 
+#   stack %>% 
+#   drop_na() %>% 
+#   as_tibble() %>% 
+#   pull(values) -> other_codes_str
+# 
+# paste(other_codes_str, collapse = ", ")
+
 # simplify duplicate names
 other_orgs_tbl <- 
 other_orgs %>% 
   mutate(org = case_when(
     org_name == 'aaa' ~ 'american anthropological association',
+    org_name == 'am anth asso' ~ 'american anthropological association',
+    org_name == 'amanthas' ~ 'american anthropological association',
     org_name == 'rpa' ~ 'register of professional archaeologists',
     org_name == 'ropa' ~ 'register of professional archaeologists',
     org_name == 'wac' ~ 'world archaeological congress',
@@ -338,6 +362,68 @@ other_orgs %>%
     org_name == 'eaa' ~ 'european association of archaeologists',
     org_name == 'cifa' ~ 'chartered institute for archaeologists',
     org_name == 'chartered institute of archaeologists' ~ 'chartered institute for archaeologists',
+    org_name == 'adho' ~ 'alliance of digital humanities organizations',
+    org_name == 'sca' ~ 'society for california archaeology',
+    org_name == 'soc for ca archaeology' ~ 'society for california archaeology',
+    org_name == 'aaa' ~ 'american anthropological association',
+  org_name == 'adho' ~ 'alliance of digital humanities organizations',
+  org_name == 'wac' ~ 'world archaeology congress',
+  org_name == 'aapa' ~ 'american association of physical anthropologists',
+  org_name == 'atada' ~ 'antique tribal art dealers association',
+  org_name == 'asa' ~ 'american sociological association',
+  org_name == 'aaus' ~ 'american academy of underwater sciences',
+  org_name == 'acua' ~ 'advisory council on underwater archaeology',
+  org_name == 'acra' ~ 'american cultural resources association',
+  org_name == 'aia' ~ 'archaeological institute of america',
+  org_name == 'aiche' ~ 'american institute of chemical engineers',
+  org_name == 'aic' ~ 'american insitute for conservation',
+  org_name == 'aicp' ~ 'american insitute of certified planners',
+  org_name == 'armr' ~ 'archaeological resource management',
+  org_name == 'asor' ~ 'american schools of oriental research',
+  org_name == 'asprs' ~ 'american society for photogrammetry and remote sensing',
+  org_name == 'arizona arch & histbsoc' ~ 'arizona archaeological and historical society',
+  org_name == 'cifa' ~ 'chartered institute of archaeologists',
+  org_name == 'cofc' ~ 'college of charleston',
+  org_name == 'eaa' ~ 'european association of archaeologists',
+  org_name == 'gsa' ~ 'geological society of america',
+  org_name == 'iai' ~ 'institute of archaeologists of ireland',
+  org_name == 'imh' ~ 'institute of maratime history', 
+  org_name == 'icahm' ~ 'international scientific committee on archaeological heritage management', 
+  org_name == 'ifa' ~ 'institute field archaeology', 
+  org_name == 'mwac' ~ 'midwest archaeological center', 
+  org_name == 'nmshpo' ~ 'new mexico historic preservation division', 
+  org_name == 'ncph' ~ 'national council of public history', 
+  org_name == 'nist' ~ 'national institute of standards and technology', 
+  org_name == 'nih' ~ 'national institute of health', 
+  org_name == 'nsf' ~ 'national science foundation', 
+  org_name == 'nyac' ~ 'new york archaeological association', 
+  org_name == 'pac' ~ 'pennsylvania archaeological council', 
+  org_name == 'paac' ~ 'program for avocational archaeological certification', 
+  org_name == 'rpa' ~ 'register of professional archaeologists', 
+  org_name == 'seac' ~ 'southeastern archaeological conference', 
+  org_name == 'sfaa' ~ 'society for applied anthropolog', 
+  org_name == 'sba' ~ 'society of black archaeologists', 
+  org_name == 'sshrc' ~ 'social sciences and humanities research council', 
+  org_name == 'icom' ~ 'international council of museums', 
+  org_name == 'ropa' ~ 'register of professional archaeologists', 
+  org_name == 'sopa' ~ 'society of professional archaeologists', 
+  org_name == 'society of vertebrate paleontology' ~ 'svp', 
+  org_name == 'semc' ~ 'southeastern museum conference', 
+  org_name == 'swganth' ~ 'scientific working group for forensic anthropology', 
+  org_name == 'thpo' ~ 'tribal historic preservation offices', 
+  org_name == 'am anth asso' ~ 'american anthropological association',
+  org_name == 'sha' ~ 'society for historical archarchaeology', 
+  org_name == 'sca' ~ 'society for california archaeology',
+  org_name == 'world archaeology congress' ~ 'world archaeology congress', 
+  org_name == 'am assoc of phys anth' ~ 'american association of physical anthropologists', 
+  org_name == 'aahs' ~ 'arizona arch & histbsoc', 
+  org_name ==  'ausarch'~ 'australian archaeological association',
+  org_name ==  'baa'~ 'british archaeological association',
+  org_name ==  'cas' ~ 'canadian archaeological society',
+  org_name ==   'cova' ~ 'council of virginia archaeologists',
+  org_name ==   'soc for hist arch' ~ 'society for historical archaeology',
+  org_name ==   'soc for ca archaeology' ~ 'society for california archaeology',
+  org_name ==   'aam' ~ 'american alliance of museums',
     TRUE ~ org_name
   ))
 
