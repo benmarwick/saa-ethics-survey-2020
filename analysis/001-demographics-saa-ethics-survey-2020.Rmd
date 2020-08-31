@@ -1,0 +1,280 @@
+---
+title: "Draft Preliminary Report on the Survey for the Revision of the SAA's Principles of Archaeological Ethics"
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+output: 
+  bookdown::html_document2:
+  number_sections: false
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE,
+                      message = FALSE,
+                      warning = FALSE,
+                      fig.retina = 2)
+```
+
+```{r load-pkgs}
+library(tidyverse)
+library(magrittr)
+library(likert)
+library(knitr)
+library(UpSetR)
+library(patchwork)
+
+# load our custom functions
+source(here::here("analysis/functions.R"))
+load_survey_data()
+```
+
+# Demographics of respondants {-}
+
+
+
+Are you a current SAA member?	
+
+```{r}
+library(janitor)
+survey_data %>% 
+  select(survey_questions_vec[single_response[1]]) %>% 
+  tabyl(`Are you a current SAA member?`) %>% 
+  adorn_totals("row")
+```
+
+What is your primary work setting?	
+
+```{r work-setting}
+work_setting <- 
+  plot_single_option_question(survey_questions_vec[single_response[11]], 
+                                 base_size = 10,
+                                  wrap = 100,
+                                 title_wrap = 50,
+                                 sort_bars = TRUE)
+
+p4 <- 
+  work_setting
+
+library(janitor)
+survey_data %>% 
+  select(survey_questions_vec[single_response[11]]) %>% 
+  mutate(simpler = case_when(
+    str_detect(`What is your primary work setting? - Selected Choice`, "Academic") ~ "Academic",
+   str_detect(`What is your primary work setting? - Selected Choice`, "CRM") ~ "CRM", 
+   str_detect(`What is your primary work setting? - Selected Choice`, "Gov") ~ "Government",
+   TRUE ~ "other"
+  )) %>% 
+  tabyl(simpler ) %>% 
+  adorn_totals("row")
+```
+
+
+Is SAA membership correlated with certain work settings?
+
+```{r}
+library(janitor)
+SAA_member_and_work_settings <- 
+survey_data %>% 
+  select(survey_questions_vec[single_response[11]],
+         survey_questions_vec[single_response[1]]) %>% 
+  mutate(simpler = case_when(
+    str_detect(`What is your primary work setting? - Selected Choice`, "Academic") ~ "Academic",
+   str_detect(`What is your primary work setting? - Selected Choice`, "CRM") ~ "CRM", 
+   str_detect(`What is your primary work setting? - Selected Choice`, "Gov") ~ "Government",
+   TRUE ~ "other"
+  )) %>% 
+  drop_na %>% 
+  tabyl(`Are you a current SAA member?`, simpler)
+
+chisq.test(SAA_member_and_work_settings)$residuals
+
+```
+
+Are you a member of the RPA?	
+
+```{r}
+#  member of RPA?
+library(janitor)
+survey_data %>% 
+  select(survey_questions_vec[single_response[4]]) %>% 
+  tabyl(`Are you a member of the RPA?`) %>% 
+  adorn_totals("row")
+```
+
+Are RPA members more likely to be working in CRM?
+
+```{r}
+# RPA and CRM?
+RPA_and_CRM_tbl <- 
+survey_data %>% 
+  select(survey_questions_vec[single_response[4]],
+         survey_questions_vec[single_response[11]]) %>% 
+   mutate(simpler = case_when(
+    str_detect(`What is your primary work setting? - Selected Choice`, "Academic") ~ "Academic",
+   str_detect(`What is your primary work setting? - Selected Choice`, "CRM") ~ "CRM", 
+   str_detect(`What is your primary work setting? - Selected Choice`, "Gov") ~ "Government",
+   TRUE ~ "other"
+  )) %>% 
+  select(`Are you a member of the RPA?`, simpler) %>% 
+  #group_by(`Are you a member of the RPA?`, simpler) %>% 
+  #tally %>% 
+  drop_na() %>% 
+  tabyl(`Are you a member of the RPA?`, simpler)
+
+RPA_and_CRM_tbl
+
+chisq.test(RPA_and_CRM_tbl)
+```
+
+How many years worked in archaeology?
+
+```{r how-many-years, fig.height=3}
+# how many years worked in archaeology?
+how_many_years_plot <- 
+survey_data %>% 
+  select(`How many years have you worked in/with archaeology?`) %>% 
+  ggplot(aes(`How many years have you worked in/with archaeology?`)) +
+  geom_histogram(binwidth = 5) +
+  geom_vline(xintercept = mean(survey_data$`How many years have you worked in/with archaeology?`, na.rm = TRUE),
+             colour = "red") +
+  theme_bw()
+
+library(ggstance)
+how_many_years_plot <- 
+survey_data %>% 
+  select(`How many years have you worked in/with archaeology?`) %>% 
+  ggplot(aes(`How many years have you worked in/with archaeology?`)) +
+  geom_histogram(binwidth = 5) +
+  geom_boxploth(aes(y = -20), width = 20) +
+  theme_bw()
+```
+
+How many years have you worked in/with archaeology?	
+
+Any relationship between work setting and years in archaeology?
+
+```{r}
+library(janitor)
+years_and_work_settings <- 
+survey_data %>% 
+  select(survey_questions_vec[single_response[11]],
+         `How many years have you worked in/with archaeology?`) %>% 
+  mutate(simpler = case_when(
+    str_detect(`What is your primary work setting? - Selected Choice`, "Academic") ~ "Academic",
+   str_detect(`What is your primary work setting? - Selected Choice`, "CRM") ~ "CRM", 
+   str_detect(`What is your primary work setting? - Selected Choice`, "Gov") ~ "Government",
+   TRUE ~ "other"
+  )) %>% 
+  drop_na %>% 
+  select(`How many years have you worked in/with archaeology?`, simpler)
+
+ggplot(years_and_work_settings) +
+  aes(simpler, 
+      `How many years have you worked in/with archaeology?`) +
+  geom_boxplot() +
+  theme_bw()
+
+# any significant difference? no
+broom::tidy(aov(`How many years have you worked in/with archaeology?` ~ simpler ,
+                data = years_and_work_settings))
+
+```
+
+Where do you do fieldwork/research? 
+
+```{r}
+# Where do you do fieldwork/research? 
+where_do_you_do_fieldwork <- 
+  plot_multiple_option_question(survey_questions_vec[multiple_response[4]],
+                                wrap = 50,
+                                truncn = 100,
+                            title_wrap = 40)
+
+p3 <- where_do_you_do_fieldwork$plot
+```
+
+
+```{r fig.height=6, fig.width=10}
+library(patchwork)
+wrap_plots(p3,  p4, ncol = 1)
+```
+
+
+```{r}
+# Where do you do fieldwork/research? 
+library(janitor)
+survey_data %>% 
+  select(survey_questions_vec[multiple_response[4]]) %>% 
+  separate_rows(`Where do you do fieldwork/research? Please check all that apply.` , sep = ",") %>% 
+  mutate(where_fieldwork = tolower(str_squish(`Where do you do fieldwork/research? Please check all that apply.`))) %>% 
+  tabyl(where_fieldwork) %>% 
+  adorn_totals("row") %>% 
+  arrange(-n)
+```
+
+Geographical area of origin
+
+```{r}
+survey_data %>% 
+  select(survey_questions_vec[single_response[9]]) %>% 
+  tabyl(`Geographical area of origin:`) %>% 
+  arrange(-n)
+```
+
+Current place of residence 
+
+```{r}
+survey_data %>% 
+  select(survey_questions_vec[single_response[10]]) %>% 
+  tabyl(`Current place of residence:`) %>% 
+  arrange(-n)
+```
+
+Age
+
+```{r}
+survey_data %>% 
+  select(survey_questions_vec[single_response[5]]) %>% 
+  tabyl(`What is your age?`) %>% 
+  arrange(-n)
+```
+
+Gender
+
+```{r}
+survey_data %>% 
+  select(survey_questions_vec[single_response[6]]) %>% 
+  tabyl(`What is your gender identity? - Selected Choice`) %>% 
+  arrange(-n)
+```
+
+LGBTQIA+
+
+```{r}
+survey_data %>% 
+  select(survey_questions_vec[single_response[7]]) %>% 
+  tabyl(`Do you consider yourself a member of the LGBTQIA+ community?`) %>% 
+  arrange(-n)
+```
+
+Ethnicity
+
+```{r}
+survey_data %>% 
+  select(survey_questions_vec[single_response[8]]) %>% 
+  tabyl(`Please indicate your ethnicity: - Selected Choice`) %>% 
+  arrange(-n)
+```
+
+Summary multi-panel plot with most demographic variables
+
+```{r demographics, fig.height=10}
+p2 <- 
+  map(single_response[c(1, 4:10)], 
+    ~plot_single_option_question(survey_questions_vec[.x], 
+                                 base_size = 8,
+                                 title_wrap = 30))
+
+
+wrap_plots(p2, ncol = 2) / how_many_years_plot + plot_layout(heights = c(1, 0.3))
+```
+
+

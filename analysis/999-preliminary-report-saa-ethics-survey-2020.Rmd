@@ -15,10 +15,14 @@ knitr::opts_chunk$set(echo = FALSE,
 
 ```{r load-pkgs}
 library(tidyverse)
+library(magrittr)
 library(likert)
 library(knitr)
 library(UpSetR)
 library(patchwork)
+
+# load our custom functions
+source(here::here("analysis/functions.R"))
 ```
 
 ```{r load-data}
@@ -52,235 +56,57 @@ likert_general <- str_which(survey_questions_vec, "^The SAA Principles of Ethics
 
 # Introduction {-}
 
-This draft preliminary report was prepared using data from 30 April 2020, which has `r nrow(survey_data)` responses. Note that not all questions received a response, and some questions allow multiple responses. The figures show a computational analysis of the responses using reproducible quantitative methods on the survey responses. 
+This draft preliminary report was prepared using data from 10 Jun 2020, which has `r nrow(survey_data)` responses. Note that not all questions received a response, and some questions allow multiple responses. The figures show a computational analysis of the responses using reproducible quantitative methods on the survey responses. 
 
-```{r create-functions}
-# general purpose function for single option questions
-
-plot_single_option_question <- function(x, 
-                                        wrap = 20, 
-                                        title_wrap = 60,
-                                        base_size = 10,
-                                        sort_bars = FALSE){
-  
-  output <- 
-  survey_data %>% 
-  group_by(!!as.name(x)) %>% 
-  tally() %>% 
-  drop_na() 
-  
-if(sort_bars) {
-  
-  ggplot(output, 
-       aes(reorder(str_wrap(!!as.name(x), wrap), n),
-             n)) +
-  geom_col() +
-  coord_flip() +
-  xlab("") +
-  ggtitle(str_wrap(paste0(names(output)[1], 
-                          " (", sum(output$n), 
-                          " valid responses)"),
-                   title_wrap)) +
-  theme_bw(base_size = base_size)
-  
-  
-} else {
-
-ggplot(output, 
-       aes(str_wrap(!!as.name(x), wrap), 
-             n)) +
-  geom_col() +
-  coord_flip() +
-  xlab("") +
-  ggtitle(str_wrap(paste0(names(output)[1], 
-                          " (", sum(output$n), 
-                          " valid responses)"),
-                   title_wrap)) +
-  theme_bw(base_size = base_size)
-}
-}
-
-plot_single_option_question_by_workplace <- function(x, 
-                                        wrap = 20, 
-                                        title_wrap = 60,
-                                        base_size = 10,
-                                        sort_bars = FALSE){
-  
-  output <- 
-  survey_data %>% 
-  filter(str_detect(`What is your primary work setting? - Selected Choice`, 
-                    "Academic - 4-year institution with a graduate program|CRM")) %>% 
-    mutate(work_setting = ifelse(str_detect(`What is your primary work setting? - Selected Choice`, 
-                                            "CRM"), "CRM", "Univeristy")) %>% 
-  group_by(!!as.name(x), 
-           work_setting) %>% 
-  tally() %>% 
-  drop_na() 
-  
-if(sort_bars) {
-  
-  ggplot(output, 
-       aes(reorder(str_wrap(!!as.name(x), wrap), n),
-           fill = work_setting,
-             n)) +
-  geom_col(position = position_fill()) +
-  coord_flip() +
-  xlab("") +
-  ggtitle(str_wrap(names(output)[1],
-                   title_wrap)) +
-  theme_bw(base_size = base_size) +
-  scale_fill_viridis_d(name = "Work setting")
-  
-  
-} else {
-
-ggplot(output, 
-       aes(str_wrap(!!as.name(x), wrap), 
-             n,
-           fill = work_setting)) +
-  geom_col(position = position_fill()) +
-  coord_flip() +
-  xlab("") +
-  ggtitle(str_wrap(names(output)[1],
-                   title_wrap)) +
-  theme_bw(base_size = base_size) +
-  scale_fill_viridis_d(name = "Work setting")
-}
-}
-
-
-plot_multiple_option_question <- function(x, wrap = 30, 
-                                          truncn = 50,
-                                          title_wrap = 60,
-                                          base_size = 10){
-  
-  x_tbl <- 
-    survey_data %>% 
-    select(x) 
-
- options <-  
-  x_tbl %>%  # split on word,Word
-    separate_rows(names(x_tbl), sep = ",(?=[[:upper:]])") %>% 
-    distinct() %>% 
-    drop_na() %>% 
-    pull
-
- cross_tab <-   
- x_tbl %>% 
-   mutate(x = !!as.name(x)) %>% 
-   select(x) %>% 
-   separate(x, 
-             paste0("v", 1:length(options)), 
-             sep = ",(?=[[:upper:]])", remove=F) %>% 
-    select(starts_with("v")) %>% 
-    pivot_longer(cols = v2:paste0("v", length(options)),
-                 names_to = "q",
-                 values_to = "val")  %>% 
-    drop_na %>% 
-    widyr::pairwise_count(v1, val) %>% 
-    spread(item2, n, fill = 0)
- 
-   # Separate rownames
-  y <- cross_tab
-  row_name <- y$item1
-  y <- y[, colnames(y) != "item1"]
-  
-  # Remove lower matrix
-  y[lower.tri(y)] <- NA
-
-  # Reappend rownames
-   new_col <- tibble::tibble(row_name)
-   names(new_col) <- "."
-   new_df <- c(new_col, y)
-   z <- 
-     dplyr::as_tibble(new_df) %>% 
-     mutate_all(as.character) %>% 
-     replace(is.na(.), "")
-   
-   # count of each 
-  x_tbl_tally <- 
-  x_tbl %>% 
-   mutate(x = !!as.name(x)) %>% 
-   mutate(x = str_squish(x)) %>% 
-   select(x) %>% 
-   separate_rows(x, 
-             sep = ",(?=[[:upper:]])") %>% 
-    mutate(x = str_squish(x)) %>% 
-    group_by(x) %>% 
-    tally() %>% 
-    drop_na() %>% 
-    arrange(-n)
- 
-plot <- 
-ggplot(x_tbl_tally, 
-       aes(reorder(str_wrap(x, wrap), n),
-             n)) +
-  geom_col() +
-  coord_flip() +
-  xlab("") +
-  ggtitle(str_wrap(paste0(str_trunc(x, truncn), 
-                          " (", sum(x_tbl_tally$n), 
-                          " valid responses)"), 
-                   title_wrap)) +
-  theme_bw(base_size = base_size)
-
-
-upset_tbl <- 
-  x_tbl %>% 
-  mutate(x = !!as.name(x)) %>% 
-  mutate(id = row_number()) %>% 
-  separate_rows(x, sep = ",(?=[[:upper:]])") %>% 
-  drop_na(x) %>% 
-  mutate(y = 1) %>%
-  spread(x, y, fill = 0)  
-  
- upset_plot <- 
-  upset_tbl %>% 
-  as.data.frame() %>% 
-  upset(sets.bar.color = "gray20",
-        main.bar.color = "gray20",
-        order.by = "freq") 
- 
-upset_plot_caption <-  
-  paste0(str_trunc(x, truncn), 
-                          " (", 
-                          sum(x_tbl_tally$n), 
-                          " selections in ",
-                          nrow(x_tbl),
-                          " responses)")
-
-return(list(plot = plot, 
-            crosstab = z,
-            tally = x_tbl_tally,
-            upset = upset_tbl,
-            upset_plot = upset_plot,
-            upset_plot_caption = upset_plot_caption))
-}
-
-
-```
-
----
 
 # Uses of the current 'Principles of Archaeological Ethics'  {-}
 
 ```{r consult-freq, fig.height=3, fig.width=10, fig.cap="Frequency of consutation of the Principles"}
 
+# reorder the variable so the plots look sensible
+the_variable <- survey_questions_vec[single_response[2]]
+survey_data %<>% 
+  mutate(!!sym(the_variable) := fct_relevel(!!sym(the_variable), 
+                                                                   c("Several times a year", 
+                                                                     "Occasionally", 
+                                                                     "About once a year", 
+                                                                     "Once or twice", 
+                                                                     "I have never consulted the Principles")))
+
 # how frequently?  
-p1a <- plot_single_option_question(survey_questions_vec[single_response[2]],
-                                 base_size = 10,
+p1a <- plot_single_option_question(the_variable,
+                                 base_size = 14,
                                  title_wrap = 50,
                                  sort_bars = FALSE
                                  )
 
-p1b <- plot_single_option_question_by_workplace(survey_questions_vec[single_response[2]],
-                                         base_size = 10,
+p1b <- 
+  plot_single_option_question_by_workplace(the_variable,
+                                         base_size = 14,
                                  title_wrap = 50,
-                                 sort_bars = FALSE) 
+                                 sort_bars = FALSE)  +
+  labs(title = "") +
+  theme(axis.title.y=element_blank(),
+        axis.text.y=element_blank(),
+        axis.ticks.y=element_blank(),
+        legend.position = "top",
+        legend.direction = "vertical")
+
+p1c <- 
+  plot_single_option_question_by_membership(survey_questions_vec[single_response[2]],
+                                         base_size = 14,
+                                 title_wrap = 50,
+                                 sort_bars = FALSE)   +
+  labs(title = "") +
+  theme(axis.title.y=element_blank(),
+        axis.text.y=element_blank(),
+        axis.ticks.y=element_blank(),
+        legend.position = "top",
+        legend.direction = "vertical")
 
 library(patchwork)
 
-p1a + p1b + plot_layout(widths = c(1, 0.6))
+p1a + p1b + p1c + plot_layout(widths = c(1, 0.6, 0.6), nrow = 1)
 ```
 
 Figure \@ref(fig:how-have-used-plot) shows the results for multiple response question "How have you used the SAA Principles of Ethics?". The horizontal bar plot on the left side indicates the total number of responses for each option, either individually or in any combination with other options. The vertical bar plot on the right shows the number of responses for each option by the specific combination of one option with other options. This allows us to see what combinations of options are common in the responses.

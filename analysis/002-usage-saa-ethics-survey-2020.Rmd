@@ -1,0 +1,363 @@
+---
+title: "Draft Preliminary Report on the Survey for the Revision of the SAA's Principles of Archaeological Ethics"
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+output: 
+  bookdown::html_document2:
+  number_sections: false
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE,
+                      message = FALSE,
+                      warning = FALSE,
+                      fig.retina = 2)
+```
+
+```{r load-pkgs}
+library(tidyverse)
+library(magrittr)
+library(likert)
+library(knitr)
+library(UpSetR)
+library(patchwork)
+
+# load our custom functions
+source(here::here("analysis/functions.R"))
+load_survey_data()
+```
+
+# Uses of the current 'Principles of Archaeological Ethics'  {-}
+
+How frequently would you estimate you have consulted the SAA Principles of Ethics in the past? 
+
+```{r consult-freq, fig.height=3, fig.width=10, fig.cap="Frequency of consutation of the Principles"}
+
+# reorder the variable so the plots look sensible
+the_variable <- survey_questions_vec[single_response[2]]
+survey_data %<>% 
+  mutate(!!sym(the_variable) := fct_relevel(!!sym(the_variable), 
+                   c("Several times a year", 
+                     "About once a year", 
+                     "Occasionally", 
+                      "Once or twice", 
+                    "I have never consulted the Principles")))
+
+library(janitor)
+survey_data %>% 
+  tabyl(the_variable) %>% View
+
+# how frequently?  
+p1a <- plot_single_option_question(the_variable,
+                                 base_size = 14,
+                                 wrap = 15,
+                                 title_wrap = 50,
+                                 sort_bars = FALSE
+                                 ) + 
+    labs(title = "") 
+
+p1b <- 
+  plot_single_option_question_by_workplace(the_variable,
+                                         base_size = 14,
+                                 title_wrap = 50,
+                                 sort_bars = FALSE)  +
+  labs(title = "",
+       y = "") +
+  theme(axis.title.y=element_blank(),
+        axis.text.y=element_blank(),
+        axis.ticks.y=element_blank(),
+        legend.position = "bottom",
+        legend.direction = "vertical")
+
+p1c <- 
+  plot_single_option_question_by_membership(survey_questions_vec[single_response[2]],
+                                         base_size = 14,
+                                 title_wrap = 50,
+                                 sort_bars = FALSE)   +
+  labs(title = "",
+       y = "") +
+  theme(axis.title.y=element_blank(),
+        axis.text.y=element_blank(),
+        axis.ticks.y=element_blank(),
+        legend.position = "bottom",
+        legend.direction = "vertical")
+
+library(patchwork)
+
+p1a + p1b + p1c + plot_layout(widths = c(1,1, 1), nrow = 1)
+ggsave(here::here("figures/how-frequently-consulted.png"),
+       width = 10,
+       height = 5)
+```
+
+How have you used the SAA Principles of Ethics? 
+
+```{r how-have-used}
+# How have you used the SAA Principles of Ethics?
+how_have_you_used <- 
+  plot_multiple_option_question(survey_questions_vec[multiple_response[1]])
+
+# see n and %
+how_have_you_used$tally %>% 
+  mutate(perc = n / n())
+
+how_have_you_used$plot
+ggsave(here::here("figures/how-have-you-used-bar-plot.png"),
+       width = 10,
+       height = 5)
+```
+
+```{r how-have-used-plot, fig.cap=how_have_you_used$upset_plot_caption, fig.height=3}
+png(here::here("figures/how-have-you-used-upset-plot.png"),
+    width = 10,
+    height = 5,
+    units = "in",
+    res = 300)
+how_have_you_used$upset_plot
+dev.off()
+
+```
+
+Free text analysis of the 'other' field of 'How have you used the SAA Principles of Ethics?' 
+
+```{r}
+load_tagged_text()
+
+how_used_tags <- 
+  out_all %>% 
+  filter(str_detect(doc, "how used"))  %>% 
+  separate_rows(tag, sep = ", ") %>% 
+  mutate(tag = tolower(str_squish(tag))) %>% 
+  mutate(doc = tolower(str_squish(str_remove_all(doc, "_|\\.txt|,|\\(1\\)"))))
+
+how_used_tags %>% 
+  group_by(doc, 
+           tag) %>% 
+  tally %>% 
+  ggplot() +
+  aes(reorder(tag, n), 
+      n) +
+  geom_col() +
+  xlab("How used") +
+  coord_flip() +
+  theme_bw(base_size = 12)
+
+ggsave(here::here("figures/how-have-you-used-tags.png"),
+       width = 5,
+       height = 3)
+```
+
+Have you consulted any other codes of ethics? 
+
+```{r other-orgs}
+# Have you consulted any other codes of ethics?
+other_codes <- 
+  plot_single_option_question(survey_questions_vec[8])
+
+other_orgs <- 
+  read_csv(here::here("data/derived-data/other-orgs-mentioned.txt")) %>% 
+  select(-X2) %>% 
+  mutate(count = 0) %>% 
+  mutate(org_name = tolower(org_name))
+
+other_codes_chr <- 
+survey_data %>% 
+  select(9) %>% 
+  pull %>% 
+  stringi::stri_trans_tolower() 
+
+# for each org, how many times are they mentioned in this Q?
+for(i in seq_len(nrow(other_orgs))){
+  t1 <- other_orgs[i, 1]$org_name
+  other_orgs[i, 2]$count <- 
+    sum(str_count(other_codes_chr, t1), na.rm = TRUE)
+}
+
+# I did this to write the case_when code below
+# other_codes_csv <- read_csv("data/derived-data/other-codes.csv", skip = 3) %>% 
+#   select(-c(1:2))
+# 
+# 
+# other_codes_csv %>% 
+#   mutate(new_col1 = str_c("org_name == ", 
+#                          "'", str_remove_all(tolower(`Varient 1 (typical abbreviation)`), "[[:punct:]]"), "'", 
+#                          " ~ ", 
+#                          "'", tolower(`Varient 2 (full name)`), "'") )  %>% 
+#   mutate(new_col2 = str_c("org_name == ", 
+#                          "'", str_remove_all(tolower(`Varient 3`), "[[:punct:]]"), "'", 
+#                          " ~ ", 
+#                          "'", tolower(`Varient 2 (full name)`), "'") )  %>% 
+#   select(new_col1, new_col2) %>% 
+#   stack %>% 
+#   drop_na() %>% 
+#   as_tibble() %>% 
+#   pull(values) -> other_codes_str
+# 
+# paste(other_codes_str, collapse = ", ")
+
+# simplify duplicate names
+other_orgs_tbl <- 
+other_orgs %>% 
+  mutate(org = case_when(
+    org_name == 'aaa' ~ 'american anthropological association',
+    org_name == 'am anth asso' ~ 'american anthropological association',
+    org_name == 'amanthas' ~ 'american anthropological association',
+    org_name == 'rpa' ~ 'register of professional archaeologists',
+    org_name == 'ropa' ~ 'register of professional archaeologists',
+    org_name == 'wac' ~ 'world archaeological congress',
+    org_name == 'world archaeology congress' ~ 'world archaeological congress',
+    org_name == 'sha' ~ 'society for historical archaeology',
+    org_name == 'aapa' ~ 'american association of physical anthropologists',
+    org_name == 'aia' ~ 'archaeological institute of america',
+    org_name == 'eaa' ~ 'european association of archaeologists',
+    org_name == 'cifa' ~ 'chartered institute for archaeologists',
+    org_name == 'chartered institute of archaeologists' ~ 'chartered institute for archaeologists',
+    org_name == 'adho' ~ 'alliance of digital humanities organizations',
+    org_name == 'sca' ~ 'society for california archaeology',
+    org_name == 'soc for ca archaeology' ~ 'society for california archaeology',
+    org_name == 'aaa' ~ 'american anthropological association',
+  org_name == 'adho' ~ 'alliance of digital humanities organizations',
+  org_name == 'wac' ~ 'world archaeology congress',
+  org_name == 'aapa' ~ 'american association of physical anthropologists',
+  org_name == 'atada' ~ 'antique tribal art dealers association',
+  org_name == 'asa' ~ 'american sociological association',
+  org_name == 'aaus' ~ 'american academy of underwater sciences',
+  org_name == 'acua' ~ 'advisory council on underwater archaeology',
+  org_name == 'acra' ~ 'american cultural resources association',
+  org_name == 'aia' ~ 'archaeological institute of america',
+  org_name == 'aiche' ~ 'american institute of chemical engineers',
+  org_name == 'aic' ~ 'american insitute for conservation',
+  org_name == 'aicp' ~ 'american insitute of certified planners',
+  org_name == 'armr' ~ 'archaeological resource management',
+  org_name == 'asor' ~ 'american schools of oriental research',
+  org_name == 'asprs' ~ 'american society for photogrammetry and remote sensing',
+  org_name == 'arizona arch & histbsoc' ~ 'arizona archaeological and historical society',
+  org_name == 'cifa' ~ 'chartered institute of archaeologists',
+  org_name == 'cofc' ~ 'college of charleston',
+  org_name == 'eaa' ~ 'european association of archaeologists',
+  org_name == 'gsa' ~ 'geological society of america',
+  org_name == 'iai' ~ 'institute of archaeologists of ireland',
+  org_name == 'imh' ~ 'institute of maratime history', 
+  org_name == 'icahm' ~ 'international scientific committee on archaeological heritage management', 
+  org_name == 'ifa' ~ 'institute field archaeology', 
+  org_name == 'mwac' ~ 'midwest archaeological center', 
+  org_name == 'nmshpo' ~ 'new mexico historic preservation division', 
+  org_name == 'ncph' ~ 'national council of public history', 
+  org_name == 'nist' ~ 'national institute of standards and technology', 
+  org_name == 'nih' ~ 'national institute of health', 
+  org_name == 'nsf' ~ 'national science foundation', 
+  org_name == 'nyac' ~ 'new york archaeological association', 
+  org_name == 'pac' ~ 'pennsylvania archaeological council', 
+  org_name == 'paac' ~ 'program for avocational archaeological certification', 
+  org_name == 'rpa' ~ 'register of professional archaeologists', 
+  org_name == 'seac' ~ 'southeastern archaeological conference', 
+  org_name == 'sfaa' ~ 'society for applied anthropology', 
+  org_name == 'sba' ~ 'society of black archaeologists', 
+  org_name == 'sshrc' ~ 'social sciences and humanities research council', 
+  org_name == 'icom' ~ 'international council of museums', 
+  org_name == 'ropa' ~ 'register of professional archaeologists', 
+  org_name == 'sopa' ~ 'society of professional archaeologists', 
+  org_name == 'svp' ~ 'society of vertebrate paleontology' , 
+  org_name == 'semc' ~ 'southeastern museum conference', 
+  org_name == 'swganth' ~ 'scientific working group for forensic anthropology', 
+  org_name == 'thpo' ~ 'tribal historic preservation offices', 
+  org_name == 'am anth asso' ~ 'american anthropological association',
+  org_name == 'sha' ~ 'society for historical archarchaeology', 
+  org_name == 'sca' ~ 'society for california archaeology',
+  org_name == 'world archaeology congress' ~ 'world archaeology congress', 
+  org_name == 'am assoc of phys anth' ~ 'american association of physical anthropologists', 
+  org_name == 'aahs' ~ 'arizona arch & histbsoc', 
+  org_name ==  'ausarch'~ 'australian archaeological association',
+  org_name ==  'baa'~ 'british archaeological association',
+  org_name ==  'cas' ~ 'canadian archaeological society',
+  org_name ==   'cova' ~ 'council of virginia archaeologists',
+  org_name ==   'soc for hist arch' ~ 'society for historical archaeology',
+  org_name ==   'soc for ca archaeology' ~ 'society for california archaeology',
+  org_name ==   'aam' ~ 'american alliance of museums',
+  org_name == 'doi' ~ 'department of the interior',
+  org_name == 'capa' ~ 'canadian association of physical anthropology',
+    TRUE ~ org_name
+  ))
+
+other_orgs_tbl_tally <- 
+other_orgs_tbl %>% 
+  group_by(org) %>% 
+  summarise(n = sum(count)) %>% 
+  arrange(desc(n)) %>% 
+  filter( n >= 2)
+```
+
+Approximately `r nrow(other_orgs)` different organisations were named in responses to this question. Most of these were named less than five times. These include state and regional archaeological societies and associations (e.g. Texas, California, Arizona, Colorado, etc.), other disciplines (e.g. American Association of Geographers, American Geophysical Union, Society of Vertebrate Paleontology), and specialized documents such as FAIR and CARE. Reasons give for why these documents were consulted included for teaching and study (e.g graduate and undergraduate coursework students and instructors), and to resolve a dispute or investigate a grievance (especially related to the RPA).
+
+---
+
+```{r other-orgs-plot, fig.cap="Other organisations mentioned more than ten times in responses to the question 'Have you consulted any other codes of ethics?'", fig.height=3}
+other_codes_tally_plot <- 
+ggplot(other_orgs_tbl_tally,
+       aes(reorder(org, n), 
+           n)) +
+  geom_col() +
+  coord_flip() +
+  theme_minimal(base_size = 12) +
+  xlab("") +
+  ylab("Number of times mentioned") +
+  ggtitle(str_c("Other organisations mentioned more than\ntwice in responses to the question\n'Have you consulted any other codes of ethics?'\n(", nrow(other_orgs), " organisations in ", length(other_codes_chr), " responses)"))
+
+library(cowplot)
+ggdraw() +
+  draw_plot(other_codes_tally_plot) +
+  draw_plot(other_codes +
+              ggtitle("Have you consulted any other codes of ethics?"), 
+            x = 0.5, y = 0.2, 
+            width = .4, height = .4)
+
+ggsave(here::here("figures/how-have-you-used-consulted-other-codes.png"),
+       width = 10,
+       height = 10)
+
+```
+
+Do CRM people more often use the RPA?
+
+```{r}
+library(janitor)
+library(janitor)
+crm_using_rpa_more_than_academic_tbl <- 
+survey_data %>% 
+  select(survey_questions_vec[single_response[11]],
+         `Please feel free to elaborate on your answer here:`) %>% 
+  mutate(`Work setting` = case_when(
+    str_detect(`What is your primary work setting? - Selected Choice`, "Academic") ~ "Academic",
+   str_detect(`What is your primary work setting? - Selected Choice`, "CRM") ~ "CRM", 
+   str_detect(`What is your primary work setting? - Selected Choice`, "Gov") ~ "Government",
+   TRUE ~ "other"
+  )) %>% 
+  mutate(use_rpa = str_detect(`Please feel free to elaborate on your answer here:`, "RPA|rpa|Register|register")) %>% 
+  select(`Work setting`, use_rpa) %>% 
+  drop_na() %>% 
+  mutate(use_rpa = ifelse(use_rpa, "Uses RPA code", "Doesn't use RPA code")) %>% 
+  tabyl(`Work setting`, use_rpa)  
+
+chisq.test(crm_using_rpa_more_than_academic_tbl)
+```
+
+Do RPA members more often use the RPA?
+
+```{r}
+library(janitor)
+crm_using_rpa <- 
+survey_data %>% 
+  select(9, 44) %>% 
+  mutate(use_rpa = str_detect(`Please feel free to elaborate on your answer here:`, "RPA|rpa|Register|register")) %>% 
+  mutate(use_rpa = ifelse(use_rpa, "Uses RPA code", "Doesn't use RPA code")) %>% 
+  drop_na %>% 
+  select(2, 3) %>% 
+  tabyl(`Are you a member of the RPA?`, use_rpa)
+
+```
+
+
+
+
+
+
+

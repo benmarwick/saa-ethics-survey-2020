@@ -1,0 +1,161 @@
+---
+title: "Draft Preliminary Report on the Survey for the Revision of the SAA's Principles of Archaeological Ethics"
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+output: 
+  bookdown::html_document2:
+  number_sections: false
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE,
+                      message = FALSE,
+                      warning = FALSE,
+                      fig.retina = 2)
+```
+
+```{r load-pkgs}
+library(tidyverse)
+library(magrittr)
+library(likert)
+library(knitr)
+library(UpSetR)
+library(patchwork)
+
+# load our custom functions
+source(here::here("analysis/functions.R"))
+load_survey_data()
+```
+
+# Feedback on the current nine "Principles of Archaeological Ethics" {-}
+
+The figure below summarizes responses about the current nine "Principles of Archaeological Ethics". For each Principle, we asked "I feel that this principle and its description adequately applies to archaeological practice and its ethical challenges today." Respondents could choose one of five options along a spectrum from "Strongly Disagree" to "Strongly Agree". Figure \@ref(fig:likert-scale) shows the distribution of responses to each of those five options for each of the nine principles. We can quickly see that the principle about "Accountability" is the least applicable to current archaeological practice, with 9% of respondents. disagreeing.
+
+---
+
+```{r likert-scale, fig.width=10, fig.cap="Plot of responses to the individual Likert scale questions about the current nine Principles"}
+# plot Likert scale items: Principles
+library(grid)
+  mylevels <- c('Strongly Disagree', 'Disagree', 'Neutral', 'Agree', 'Strongly Agree')
+  
+  output <- 
+  survey_data %>% 
+  select(!!likert_q) %>% 
+  drop_na() %>% 
+  mutate_all(~factor(., levels=mylevels)) %>% 
+  as.data.frame()
+  
+  long_names <- names(output)
+  short_names  <- str_extract(names(output), ".*\\d")
+  short_principles <- 
+    c("Stewardship",
+      "Accountability",
+      "Commercialization",
+      "Public Education",
+      "Intellectual Property",
+      "Public Reporting",
+      "Records and Preservation",
+      "Training and Resources",
+      "Safe Educational and Workplace"
+      )
+  
+  names(output) <- paste0(short_names, ": ", short_principles)
+  
+  l_out <- likert(output)
+  
+plot(l_out, include.histogram = FALSE) 
+
+ggsave(here::here("figures/nine-principles-likert.png"),
+       width = 10,
+       height = 5)
+
+```
+
+---
+
+## General observations on the current nine Principles {-}
+
+```{r likert-scale-general, fig.width=10, fig.height = 3, fig.cap="Plot of responses to the Likert scale questions about general observations on the current nine Principles"}
+
+  output <- 
+  survey_data %>% 
+  select(!!likert_general) %>% 
+  drop_na() %>% 
+  mutate_all(~factor(., levels=mylevels)) %>% 
+  as.data.frame()
+  
+  long_names <- names(output)
+  short_names  <- 
+    c("adequately addresses ethical concerns in the country in which I work/study/teach",
+      "adequately addresses ethical concerns in sector in which I work"
+      )
+  
+  names(output) <- short_names
+  
+  l_out <- likert(output)
+  
+plot(l_out, include.histogram = TRUE) 
+```
+
+---
+
+## Text analysis on 'please elaborate' for the current nine Principles {-}
+
+We make a network plot of co-occurrences of high-frequency words for each Principles. 
+
+```{r}
+nine_principles_elaboration <- 
+survey_data %>% 
+  select(contains("Please elaborate here:")) %>% 
+  select("Please elaborate here:":"Please elaborate here:_8") %>% 
+  rename_all(~short_principles) %>% 
+  mutate(across(everything(), stringi::stri_trans_tolower))
+
+# Word cloud
+library(quanteda)
+
+nw <- vector("list", length = ncol(nine_principles_elaboration))
+for(i in 1:ncol(nine_principles_elaboration)){
+  
+# i <- 3
+x <- nine_principles_elaboration %>% pull(i)
+
+x_corp <- corpus(x)
+
+set.seed(10)
+dfmat1 <- dfm(x_corp,
+              remove = c(stopwords("english"), 
+                         "archaeological",
+                         "archaeologists",
+                         "archaeology",
+                         "principle",
+                         "saa"), 
+              remove_punct = TRUE,
+              remove_numbers = TRUE) %>%
+   dfm_trim(min_termfreq = 5) 
+
+df_fcm <- fcm(dfmat1)
+top_fcm <- 
+  fcm_select(df_fcm, 
+             pattern = names(quanteda::topfeatures(dfmat1, n = 20)))
+nw[[i]] <- textplot_network(top_fcm, 
+                       min_freq = 0.75, 
+                       edge_alpha = 0.3, 
+                       edge_size = 5)
+}
+
+
+
+library(cowplot)
+plot_grid(plotlist = nw)
+
+```
+
+
+
+
+
+
+
+
+
+

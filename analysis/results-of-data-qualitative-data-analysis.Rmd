@@ -366,6 +366,78 @@ how_used_tags %>%
   theme_bw(base_size = 12)
 ```
 
+```{r}
+documents_tags <- 
+  out_all %>% 
+  filter(str_detect(doc, "documents"))  %>% 
+  separate_rows(tag, sep = ", ") %>% 
+  mutate(tag = tolower(str_squish(tag))) %>% 
+  mutate(doc = tolower(str_squish(str_remove_all(doc, "_|\\.txt|,|\\(1\\)"))))
+
+documents_tags %>% 
+  group_by(doc, 
+           tag) %>% 
+  tally %>% 
+  ggplot() +
+  aes(reorder(tag, n), 
+      n) +
+  geom_col() +
+  xlab("Type of ethical document") +
+  coord_flip() +
+  theme_bw(base_size = 12)
+
+
+V <- documents_tags %>% 
+  select(txt, tag)
+
+V1 <- crossprod(table(V))
+diag(V1) <- 0
+# heatmap(V1)
+
+V1[lower.tri(V1)] <- NA
+
+V2 <- 
+V1 %>% 
+  as.data.frame() %>%
+  rownames_to_column("tag") %>%
+  pivot_longer(-c(tag),
+               names_to = "samples",
+               values_to = "counts") %>% 
+  mutate(samples = tolower(str_squish(samples))) %>% 
+  mutate(tag = tolower(str_squish(tag))) %>% 
+  group_by(tag, samples) %>% 
+  summarise(n_sum = sum(counts))
+
+V2 %>% 
+  ggplot(aes(x = samples,
+             y = tag,
+             fill = n_sum)) +
+  geom_tile(color = "white") +
+  scale_fill_viridis_c(
+    na.value = 'white',
+    begin = 1,
+    end = 0,
+    name = "Co-occurance\ncount"
+  ) +
+  theme_minimal() +
+  theme(axis.text.x = element_text(
+    angle = 90,
+    vjust = 0.5,
+    size = 6,
+    hjust = 1
+  ),
+    axis.text.y = element_text(
+    angle = 0,
+    vjust = 1,
+    size = 6,
+    hjust = 1
+  )
+  ) +
+  labs(x = "", 
+       y = "") +
+  coord_fixed()
+```
+
 
 ```{r}
 # other codes
