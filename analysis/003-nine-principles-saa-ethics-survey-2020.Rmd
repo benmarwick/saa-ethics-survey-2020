@@ -148,6 +148,19 @@ nw[[i]] <- textplot_network(top_fcm,
 library(cowplot)
 plot_grid(plotlist = nw)
 
+nw[[1]]
+for(i in 1:length(nw)){
+
+ggsave(plot = nw[[i]],
+       here::here(paste0("figures/nine-principles-network-principle-",
+                         i, 
+                         ".png")),
+       width = 5,
+       height = 5)
+
+}
+
+
 ```
 
 

@@ -275,6 +275,86 @@ p2 <-
 
 
 wrap_plots(p2, ncol = 2) / how_many_years_plot + plot_layout(heights = c(1, 0.3))
+
+ggsave(here::here("figures/demographics-summary-panel.png"),
+                  height = 10,
+                  width = 10)
 ```
+
+MCA to explore structure in the demographics of the respondants 
+
+```{r}
+# demo vars
+demographic_vars <- 
+  survey_data[, c(45:47, 49:50, 52:53, 55) ] %>% 
+    mutate(`Work setting` = case_when(
+    str_detect(`What is your primary work setting? - Selected Choice`, "Academic") ~ "Academic",
+   str_detect(`What is your primary work setting? - Selected Choice`, "CRM") ~ "CRM", 
+   str_detect(`What is your primary work setting? - Selected Choice`, "Gov") ~ "Government",
+   TRUE ~ "other"
+  )) %>% 
+  dplyr::select(-`What is your primary work setting? - Selected Choice`,
+                -`How many years have you worked in/with archaeology?`,
+                -`Current place of residence:`,
+                -`Geographical area of origin:`
+              ) %>% 
+  mutate_all(as.factor) %>% 
+  drop_na
+
+cats = apply(demographic_vars, 2, function(x) nlevels(as.factor(x)))
+
+require(FactoMineR)
+require(ggplot2)
+
+# apply MCA
+mca1 = MCA(as.data.frame(demographic_vars), 
+           graph = FALSE)
+
+# list of results
+mca1
+
+# data frame with variable coordinates
+mca1_vars_df = 
+  data.frame(mca1$var$coord,
+             Variable = rep(names(cats), cats))
+
+# data frame with observation coordinates
+mca1_obs_df = data.frame(mca1$ind$coord)
+
+# plot of variable categories
+ggplot(data=mca1_vars_df, 
+       aes(x = Dim.1, y = Dim.2, label = rownames(mca1_vars_df))) +
+ geom_hline(yintercept = 0, colour = "gray70") +
+ geom_vline(xintercept = 0, colour = "gray70") +
+ geom_text(aes(colour=Variable)) +
+ ggtitle("MCA plot of variables using R package FactoMineR")
+
+# MCA plot of observations and categories
+library(ggrepel)
+ggplot(data = mca1_obs_df, 
+       aes(x = Dim.1, y = Dim.2)) +
+  geom_hline(yintercept = 0, colour = "gray70") +
+  geom_vline(xintercept = 0, colour = "gray70") +
+  geom_point(colour = "gray50", alpha = 0.7) +
+  #geom_density2d(colour = "gray80") +
+  geom_text_repel(data = mca1_vars_df, 
+            aes(x = Dim.1, 
+                y = Dim.2, 
+                label = rownames(mca1_vars_df), 
+                colour = Variable),
+            size = 2,
+            bg.r = 0.1,
+            bg.color = "white") +
+  scale_colour_discrete(name = "Variable") +
+  theme_bw(base_size = 12) +
+  theme(legend.position = c(0.7, 0.8))
+
+ggsave(here::here("figures/demographics-mca.png"),
+       width = 10,
+       height = 5)
+
+```
+
+
 
 
