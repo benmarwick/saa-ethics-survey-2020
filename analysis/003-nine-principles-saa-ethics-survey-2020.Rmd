@@ -74,30 +74,6 @@ ggsave(here::here("figures/nine-principles-likert.png"),
 
 ## General observations on the current nine Principles {-}
 
-```{r likert-scale-general, fig.width=10, fig.height = 3, fig.cap="Plot of responses to the Likert scale questions about general observations on the current nine Principles"}
-
-  output <- 
-  survey_data %>% 
-  select(!!likert_general) %>% 
-  drop_na() %>% 
-  mutate_all(~factor(., levels=mylevels)) %>% 
-  as.data.frame()
-  
-  long_names <- names(output)
-  short_names  <- 
-    c("adequately addresses ethical concerns in the country in which I work/study/teach",
-      "adequately addresses ethical concerns in sector in which I work"
-      )
-  
-  names(output) <- short_names
-  
-  l_out <- likert(output)
-  
-plot(l_out, include.histogram = TRUE) 
-```
-
----
-
 ## Text analysis on 'please elaborate' for the current nine Principles {-}
 
 We make a network plot of co-occurrences of high-frequency words for each Principles. 

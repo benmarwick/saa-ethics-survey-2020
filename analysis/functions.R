@@ -27,6 +27,64 @@ likert_general <<- str_which(survey_questions_vec, "^The SAA Principles of Ethic
 }
 
 
+# decode demographic variables
+decode_demographics <- function(){
+  
+  key_sheets <- readxl::excel_sheets(here::here("data/raw-data/SAA Ethics TF 2 Survey - 09-01-20 - Key.xlsx"))
+  key_tbl <- map(key_sheets[-1], 
+                 ~readxl::read_excel(here::here("data/raw-data/SAA Ethics TF 2 Survey - 09-01-20 - Key.xlsx"),
+                                    sheet = .x) %>% 
+                   rename_all(tolower)) 
+  
+  demographic_variables <<-
+    survey_questions_vec[c(4, 44, 45, 46, 47, 48, 49, 50, 51, 52, 53, 54, 55, 56)]
+  
+  # to match with the key
+  demographic_variables_key <- demographic_variables[c(4, 11, 10, 8, 7, 5)]
+  
+  names(key_tbl) <- demographic_variables_key
+  
+# rename columns so we can join easily 
+  key_tbl_nm <- 
+  map2(key_tbl,
+       demographic_variables_key,
+       ~.x %>% rename(!!.y := names(.x)[2] ))
+  
+  # demographic question responses only 
+  survey_data_demographics <- 
+  survey_data %>%
+    dplyr::select(!!demographic_variables_key)
+  
+  survey_data_demographics %>% 
+   select(!!demographic_variables_key[3]) %>% 
+    left_join(key_tbl_nm[["Geographical area of origin:"]]) %>% View
+    
+  
+zzz <-  
+map(key_tbl_nm, 
+    ~ survey_data %>%
+      dplyr::select(!!demographic_variables_key) %>% 
+    left_join(.x) %>% 
+  dplyr::select(-c(!!demographic_variables_key)))
+ 
+
+ zzz$`What is your age?`                                             # 1,661 
+ # Age - 62 matches both '70 and over' and 'Prefer not to answer' 
+ 
+ zzz$`Geographical area of origin:`                                 # 1,658
+ # GeoOrigin - 33 matches both Eastern Asia & Latin America and the Caribbean
+ 
+ zzz$`Current place of residence:`                                   # 2,500
+ # Residency - 90 matches both Polynesia and Eastern Europe 
+ 
+ zzz$`Please indicate your ethnicity: - Selected Choice`             # 1,542 
+ zzz$`Do you consider yourself a member of the LGBTQIA+ community?`  # 1,542 
+ zzz$`What is your gender identity? - Selected Choice`               # 1,542 
+ 
+
+}
+
+
 
 # general purpose function for single option questions
 

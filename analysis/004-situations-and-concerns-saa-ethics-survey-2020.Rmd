@@ -1,0 +1,230 @@
+---
+title: "Draft Preliminary Report on the Survey for the Revision of the SAA's Principles of Archaeological Ethics"
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+output: 
+  bookdown::html_document2:
+  number_sections: false
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE,
+                      message = FALSE,
+                      warning = FALSE,
+                      fig.retina = 2)
+```
+
+```{r load-pkgs}
+library(tidyverse)
+library(magrittr)
+library(likert)
+library(knitr)
+library(UpSetR)
+library(patchwork)
+
+# load our custom functions
+source(here::here("analysis/functions.R"))
+load_survey_data()
+```
+
+
+# As a whole, the SAA Principles of Ethics satisfactorily addresses the ethical situations archaeologists find themselves in today
+
+```{r}
+situations <- 
+survey_data %>% 
+  select(`As a whole, the SAA Principles of Ethics satisfactorily addresses the ethical situations archaeologists find themselves in today.`,
+         `Please elaborate here:_9`,
+         `The SAA Principles of Ethics adequately addresses ethical concerns in the country in which I work, am a student, or teach.`,
+        `Please elaborate here:_10`,
+        `The SAA Principles of Ethics adequately addresses ethical concerns in sector in which I work.`,
+        `Please elaborate here:_11`)
+```
+
+
+```{r}
+# likert scale
+
+library(grid)
+  mylevels <- c('Strongly Disagree', 'Disagree', 'Neutral', 'Agree', 'Strongly Agree')
+  
+output <- 
+  situations %>% 
+  select(-contains("Please")) %>% 
+  drop_na() %>% 
+  mutate_all(~factor(., levels=mylevels)) %>% 
+  as.data.frame()
+
+names(output) <- 
+  c("Ethical situations today", 
+    "Concerns in country", 
+    "Conerns in sector")
+
+library(likert)
+l_out <- likert(output)
+  
+plot(l_out, include.histogram = FALSE) +
+  theme_bw(base_size =12)
+
+ggsave(here::here("figures/concerns-situations-likert.png"),
+       width = 10,
+       height = 5)
+```
+
+Network plots for the high frequency words in the free text responses
+
+```{r}
+situations_elaboration <- 
+situations %>% 
+  select(contains("Please")) %>% 
+   rename_all(~names(output) ) %>% 
+  mutate(across(everything(), stringi::stri_trans_tolower))
+
+# Word cloud
+library(quanteda)
+
+nw <- vector("list", length = ncol(situations_elaboration))
+for(i in 1:ncol(situations_elaboration)){
+  
+# i <- 3
+x <- situations_elaboration %>% pull(i)
+
+x_corp <- corpus(x)
+
+set.seed(10)
+dfmat1 <- dfm(x_corp,
+              remove = c(stopwords("english"), 
+                         "archaeological",
+                         "archaeologists",
+                         "archaeology",
+                         "principle",
+                         "principles",
+                         "ethics",
+                         "ethical",
+                         "sector",
+                         "country",
+                         "countries",
+                         "concerns",
+                         "address",
+                         "saa"), 
+              remove_punct = TRUE,
+              remove_numbers = TRUE) %>%
+   dfm_trim(min_termfreq = 5) 
+
+df_fcm <- fcm(dfmat1)
+top_fcm <- 
+  fcm_select(df_fcm, 
+             pattern = names(quanteda::topfeatures(dfmat1, n = 20)))
+nw[[i]] <- textplot_network(top_fcm, 
+                       min_freq = 0.75, 
+                       edge_alpha = 0.3, 
+                       edge_size = 5)
+}
+
+
+
+library(cowplot)
+plot_grid(plotlist = nw)
+
+# nw[[1]]
+for(i in 1:length(nw)){
+
+ggsave(plot = nw[[i]],
+       here::here(paste0("figures/concerns-situations-network-",
+                         i, 
+                         ".png")),
+       width = 5,
+       height = 5)
+
+}
+
+```
+
+
+```{r}
+## Average disagreement by work setting category
+x1 <- 
+survey_data %>% 
+  # get demographic data
+  mutate(work_setting = as.factor(case_when(
+    str_detect(`What is your primary work setting? - Selected Choice`, "Academic") ~ "Academic",
+    str_detect(`What is your primary work setting? - Selected Choice`, "CRM") ~ "CRM", 
+    str_detect(`What is your primary work setting? - Selected Choice`, "Gov") ~ "Government",
+    TRUE ~ "other")
+  ),
+  years = `How many years have you worked in/with archaeology?`,
+  member = `Are you a current SAA member?`,
+  member = ifelse(str_detect("Yes", member), "yes", 'no'),
+  rpa = `Are you a member of the RPA?`,
+  age = `What is your age?`,
+  gender = `What is your gender identity? - Selected Choice`,
+  lgbqtia = `Do you consider yourself a member of the LGBTQIA+ community?`,
+  ethnicity = `Please indicate your ethnicity: - Selected Choice`
+  ) %>% 
+  # get likert data for situations
+  mutate_at(vars(29, 31, 33), ~factor(., levels=mylevels))  %>% 
+  select(`As a whole, the SAA Principles of Ethics satisfactorily addresses the ethical situations archaeologists find themselves in today.`,
+         `Please elaborate here:_9`,
+         `The SAA Principles of Ethics adequately addresses ethical concerns in the country in which I work, am a student, or teach.`,
+        `Please elaborate here:_10`,
+        `The SAA Principles of Ethics adequately addresses ethical concerns in sector in which I work.`,
+        `Please elaborate here:_11`,
+         work_setting,
+         years,
+         member,
+         rpa,
+         age,
+         #gender,
+         #lgbqtia,
+         #ethnicity
+         ) %>% 
+  drop_na() 
+
+# cols 29, 31, 33
+zz1 <- as.numeric(fct_rev(x1[[ names(survey_data)[29] ]] ))
+zz2 <- as.numeric(fct_rev(x1[[ names(survey_data)[31] ]] ))
+zz3 <- as.numeric(fct_rev(x1[[ names(survey_data)[33] ]] ))
+
+x2 <- 
+x1 %>% 
+  dplyr::select(work_setting, 
+                # years, 
+                # member, 
+                # rpa, 
+                # age
+                )  %>% 
+  mutate_all(as.character) %>% 
+  bind_cols(`addresses situations` = zz1,
+            `concerns in country` = zz2,
+            `concerns in sector` = zz3) %>% 
+  pivot_longer(c(`addresses situations`, 
+               `concerns in country`, 
+               `concerns in sector`)) %>% 
+  group_by(work_setting, name) %>% 
+  summarise(`Average disagreement` = mean(value)) 
+
+
+# average disagreement by with situation/country/sector by work setting
+  ggplot(x2) +
+  aes(work_setting,
+      `Average disagreement`) +
+  geom_col() +
+    facet_wrap( ~ name)  +
+  scale_y_continuous(limits = c(0, 5)) +
+  theme_bw(base_size = 12) +
+  xlab("")
+  
+ggsave(here::here("figures/concerns-situations-disagreemnt-panel.png"),
+                  height = 5,
+                  width = 10)
+  
+
+```
+
+
+
+
+
+
+
+
+

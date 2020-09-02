@@ -53,7 +53,7 @@ survey_data %>%
          ) %>% 
   drop_na() 
 
-
+#--------------------------------------------------------------
 # run a regression for each of the nine principles
 # store the output
 
@@ -125,7 +125,31 @@ map_df(output_lst,
 
 # Plotting
 library(effects)
-plot(Effect(focal.predictors = c("years","member","rpa","work_setting"), 
-            output_lst[[8]]$polr_out),
+plot(Effect(focal.predictors = c("years","member","rpa"), 
+            output_lst[[1]]$polr_out),
      rug = FALSE)
-        
+
+#--------------------------------------------------------------
+## Average disagreement by demographic category
+
+zz <- as.numeric(fct_rev(x1[[names(survey_data)[likert_q[1]]]]  )  )
+
+x1 %>% 
+  dplyr::select(work_setting, years, member, rpa, age)  %>% 
+  mutate_all(as.character) %>% 
+  bind_cols(p = zz) %>% 
+  pivot_longer(-p) %>% 
+  group_by(name, value) %>% 
+  summarise(`Average disagreement` = mean(p)) %>% 
+  ggplot() +
+  aes(value,
+      `Average disagreement`) +
+  geom_col() +
+  facet_wrap( ~ name,
+              scales = "free") +
+  scale_y_continuous(limits = c(0, 4)) +
+  theme_bw()
+  
+
+head(zz)
+head(x1[[names(survey_data)[likert_q[1]]]])
