@@ -24,6 +24,7 @@ library(patchwork)
 # load our custom functions
 source(here::here("analysis/functions.R"))
 load_survey_data()
+decode_demographics()
 ```
 
 # Demographics of respondants {-}
@@ -210,75 +211,182 @@ survey_data %>%
   arrange(-n)
 ```
 
+## Demo vars that were anonymised
+
 Geographical area of origin
 
 ```{r}
-survey_data %>% 
-  select(survey_questions_vec[single_response[9]]) %>% 
-  tabyl(`Geographical area of origin:`) %>% 
-  arrange(-n)
+library(janitor)
+geoorigin_tally <- 
+survey_data_demographics %>% 
+  tabyl(geoorigin) %>% 
+  arrange(-n) %>% 
+  rename(variable = geoorigin)
+
+ggplot(geoorigin_tally) +
+  aes(variable, n) +
+  geom_col() +
+  theme_bw()
 ```
 
 Current place of residence 
 
 ```{r}
-survey_data %>% 
-  select(survey_questions_vec[single_response[10]]) %>% 
-  tabyl(`Current place of residence:`) %>% 
-  arrange(-n)
+residence_tally <- 
+survey_data_demographics %>% 
+  tabyl(residence) %>% 
+  arrange(-n)  %>% 
+  rename(variable = residence)
+
+ggplot(residence_tally) +
+  aes(variable, n) +
+  geom_col() +
+  theme_bw()
 ```
 
 Age
 
 ```{r}
-survey_data %>% 
-  select(survey_questions_vec[single_response[5]]) %>% 
-  tabyl(`What is your age?`) %>% 
-  arrange(-n)
+age_fct <- c("18-22", "23-29", "30-39", "40-49", "50-59", "60-69", "70 and over", "Prefer not to answer")
+
+age_tally <- 
+survey_data_demographics %>% 
+  mutate(age = factor(age, levels = age_fct)) %>% 
+  tabyl(age) %>% 
+  arrange(age) %>% 
+  rename(variable = age)
+
+ggplot(age_tally) +
+  aes(variable, n) +
+  geom_col() +
+  theme_bw()
 ```
 
 Gender
 
 ```{r}
-survey_data %>% 
-  select(survey_questions_vec[single_response[6]]) %>% 
-  tabyl(`What is your gender identity? - Selected Choice`) %>% 
-  arrange(-n)
+gender_tally <- 
+survey_data_demographics %>% 
+  tabyl(gender) %>% 
+  arrange(-n) %>% 
+  rename(variable = gender)
+
+ggplot(gender_tally) +
+  aes(variable, n) +
+  geom_col() +
+  theme_bw()
 ```
 
 LGBTQIA+
 
 ```{r}
-survey_data %>% 
-  select(survey_questions_vec[single_response[7]]) %>% 
-  tabyl(`Do you consider yourself a member of the LGBTQIA+ community?`) %>% 
-  arrange(-n)
+LGBTQIA_tally <- 
+survey_data_demographics %>% 
+  tabyl(lgbt_comm) %>% 
+  arrange(-n) %>% 
+  rename(variable = lgbt_comm)
+
+ggplot(LGBTQIA_tally) +
+  aes(variable, n) +
+  geom_col() +
+  theme_bw()
 ```
 
 Ethnicity
 
 ```{r}
-survey_data %>% 
-  select(survey_questions_vec[single_response[8]]) %>% 
-  tabyl(`Please indicate your ethnicity: - Selected Choice`) %>% 
-  arrange(-n)
+ethnicity_tally <- 
+survey_data_demographics %>% 
+  tabyl(ethnicity) %>% 
+  arrange(-n) %>% 
+  rename(variable = ethnicity)
+
+ggplot(ethnicity_tally) +
+  aes(variable, n) +
+  geom_col() +
+  theme_bw()
 ```
+
+Combine some demo vars
+
+```{r}
+dv <- 
+bind_rows("Geographic origin" = geoorigin_tally,
+          "Country of residence" = residence_tally,
+          "Age" = age_tally,
+          "Gender" = gender_tally,
+          "LGBTQIA+" = LGBTQIA_tally,
+          "Ethnicity" = ethnicity_tally,
+          .id = "var")
+
+ggplot(dv) +
+  aes(variable, n) +
+  geom_col() +
+  facet_wrap(~ var,
+             scales = "free",
+             ncol = 1) +
+  theme_bw(base_size = 8) +
+  scale_x_discrete(guide=guide_axis(n.dodge=2)) +
+  xlab("")
+```
+
+
 
 Summary multi-panel plot with most demographic variables
 
+```{r}
+
+survey_data_demographics_member <- 
+survey_data_demographics %>% 
+  bind_cols(survey_data$`Are you a current SAA member?`,
+            survey_data$`Are you a member of the RPA?`)
+
+plot_labels <- 
+  c("Ethnicity",
+    "LGBTQIA+",
+    "Gender",
+    "Age",
+    "Country of residence",
+    "Geographic origin",
+    "SAA member",
+    "RPA member"
+  )
+
+
+horizontal_demo_plots <- 
+    map2(survey_data_demographics_member, 
+         plot_labels,
+    ~tabyl(.x) %>% 
+       ggplot( 
+           aes(str_wrap(.x, 50),
+               n)) +
+      geom_col() +
+      coord_flip() +
+      xlab("") +
+      scale_x_discrete(labels = function(x) str_wrap(x, width = 50)) +
+      theme_bw(base_size = 12) +
+      ggtitle(.y)
+    )
+      
+```
+
+
 ```{r demographics, fig.height=10}
-p2 <- 
-  map(single_response[c(1, 4:10)], 
-    ~plot_single_option_question(survey_questions_vec[.x], 
-                                 base_size = 8,
-                                 title_wrap = 30))
+library(cowplot)
+p01 <- plot_grid(plotlist = horizontal_demo_plots, 
+                 ncol = 2,
+                 axis = "lr",
+                 align = "hv")
 
+plot_grid(p01,
+          how_many_years_plot,
+          ncol = 1,
+          rel_heights = c(1, 0.3))
 
-wrap_plots(p2, ncol = 2) / how_many_years_plot + plot_layout(heights = c(1, 0.3))
 
 ggsave(here::here("figures/demographics-summary-panel.png"),
-                  height = 10,
-                  width = 10)
+                  height = 15,
+                  width = 15)
 ```
 
 MCA to explore structure in the demographics of the respondants 

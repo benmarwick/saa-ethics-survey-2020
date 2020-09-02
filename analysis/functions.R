@@ -35,6 +35,13 @@ decode_demographics <- function(){
                  ~readxl::read_excel(here::here("data/raw-data/SAA Ethics TF 2 Survey - 09-01-20 - Key.xlsx"),
                                     sheet = .x) %>% 
                    rename_all(tolower)) 
+  # but he made a mistake and updated some of the variables...
+  key_sheets_1 <- readxl::excel_sheets(here::here("data/raw-data/SAA Ethics TF 2 Survey - 09-02-20 - Key Correction Data.xlsx"))
+  key_tbl_1 <- map(key_sheets_1[-1], 
+                 ~readxl::read_excel(here::here("data/raw-data/SAA Ethics TF 2 Survey - 09-02-20 - Key Correction Data.xlsx"),
+                                     sheet = .x) %>% 
+                   rename_all(tolower)) 
+  
   
   demographic_variables <<-
     survey_questions_vec[c(4, 44, 45, 46, 47, 48, 49, 50, 51, 52, 53, 54, 55, 56)]
@@ -50,37 +57,78 @@ decode_demographics <- function(){
        demographic_variables_key,
        ~.x %>% rename(!!.y := names(.x)[2] ))
   
+  # we are just going to do some of the demo vars here, because the others need
+  # to be treated completely differently
+  key_tbl_nm_ok  <- key_tbl_nm[c(-1, -2, -3)]
+  key_tbl_nm_not_ok  <- key_tbl_nm[c(1, 2, 3)]
+  
   # demographic question responses only 
   survey_data_demographics <- 
   survey_data %>%
     dplyr::select(!!demographic_variables_key)
-  
-  survey_data_demographics %>% 
-   select(!!demographic_variables_key[3]) %>% 
-    left_join(key_tbl_nm[["Geographical area of origin:"]]) %>% View
-    
-  
+ 
 zzz <-  
-map(key_tbl_nm, 
+map(key_tbl_nm_ok, 
     ~ survey_data %>%
       dplyr::select(!!demographic_variables_key) %>% 
     left_join(.x) %>% 
-  dplyr::select(-c(!!demographic_variables_key)))
- 
+  dplyr::select(-c(!!demographic_variables_key))) %>% 
+  bind_cols()
 
- zzz$`What is your age?`                                             # 1,661 
- # Age - 62 matches both '70 and over' and 'Prefer not to answer' 
- 
- zzz$`Geographical area of origin:`                                 # 1,658
- # GeoOrigin - 33 matches both Eastern Asia & Latin America and the Caribbean
- 
- zzz$`Current place of residence:`                                   # 2,500
- # Residency - 90 matches both Polynesia and Eastern Europe 
- 
- zzz$`Please indicate your ethnicity: - Selected Choice`             # 1,542 
- zzz$`Do you consider yourself a member of the LGBTQIA+ community?`  # 1,542 
- zzz$`What is your gender identity? - Selected Choice`               # 1,542 
- 
+# now that's one set of demo vars done
+
+# now for the set he botched
+aaa <- 
+survey_data %>% 
+  mutate(`Geographical area of origin:` = ifelse(`Geographical area of origin:` == "GeoOrigin - 29", 
+         NA, `Geographical area of origin:`)) %>% 
+  left_join(key_tbl_1[[1]],
+            by = c("Response ID" = "response id")) %>% 
+  left_join(key_tbl_1[[2]],
+            by = c("Response ID" = "response id")) %>% 
+  left_join(key_tbl_1[[3]],
+            by = c("Response ID" = "response id")) %>% 
+  dplyr::select(!!demographic_variables_key,
+                `what is your age?`,
+                `geographical area of origin:`,
+                `current place of residence:`) %>% 
+  mutate(`What is your age?` = ifelse(is.na(`what is your age?`),
+                      `What is your age?`,
+                      `what is your age?`)) %>% 
+  mutate(`Current place of residence:` = ifelse(is.na(`current place of residence:`),
+                      `Current place of residence:`,
+                      `current place of residence:`))  %>% 
+  mutate(`Geographical area of origin:` = ifelse(is.na(`geographical area of origin:`),
+                            `Geographical area of origin:`,
+                            `geographical area of origin:`))
+
+demo_cols <- c("What is your age?", 
+              "Current place of residence:", 
+              "Geographical area of origin:")
+
+zzz1 <-  
+  map2(key_tbl_nm_not_ok, 
+       demo_cols,
+      ~ aaa %>%
+        dplyr::select(.y) %>% 
+        left_join(.x) ) %>% 
+  bind_cols() %>% 
+  # combine cols
+  mutate(`What is your age?` = ifelse(is.na(age), 
+                                      `What is your age?`, 
+                                      age)) %>% 
+  mutate(`Current place of residence:` = ifelse(is.na(residency), 
+                                                `Current place of residence:`, 
+                                                residency)) %>% 
+  mutate(`Geographical area of origin:` = ifelse(is.na(geoorigin), 
+                                                `Geographical area of origin:`, 
+                                                geoorigin))  %>% 
+  select(age = `What is your age?` ,
+         residence = `Current place of residence:`,
+         geoorigin = `Geographical area of origin:` )
+
+# combine all demo vars
+survey_data_demographics <<-bind_cols(zzz, zzz1)
 
 }
 
