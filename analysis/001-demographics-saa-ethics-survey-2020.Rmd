@@ -338,8 +338,8 @@ Summary multi-panel plot with most demographic variables
 
 survey_data_demographics_member <- 
 survey_data_demographics %>% 
-  bind_cols(survey_data$`Are you a current SAA member?`,
-            survey_data$`Are you a member of the RPA?`)
+  bind_cols(saa = survey_data$`Are you a current SAA member?`,
+            rpa = survey_data$`Are you a member of the RPA?`)
 
 plot_labels <- 
   c("Ethnicity",
@@ -395,19 +395,31 @@ MCA to explore structure in the demographics of the respondants
 # demo vars
 demographic_vars <- 
   survey_data[, c(45:47, 49:50, 52:53, 55) ] %>% 
+  bind_cols(survey_data_demographics_member) %>% 
     mutate(`Work setting` = case_when(
     str_detect(`What is your primary work setting? - Selected Choice`, "Academic") ~ "Academic",
    str_detect(`What is your primary work setting? - Selected Choice`, "CRM") ~ "CRM", 
    str_detect(`What is your primary work setting? - Selected Choice`, "Gov") ~ "Government",
    TRUE ~ "other"
   )) %>% 
-  dplyr::select(-`What is your primary work setting? - Selected Choice`,
+  dplyr::select(-`What is your age?`,
+                -`What is your gender identity? - Selected Choice`,
+                -`Do you consider yourself a member of the LGBTQIA+ community?`,
+                -`Please indicate your ethnicity: - Selected Choice`,
+                -`What is your primary work setting? - Selected Choice`,
                 -`How many years have you worked in/with archaeology?`,
                 -`Current place of residence:`,
                 -`Geographical area of origin:`
               ) %>% 
   mutate_all(as.factor) %>% 
+  filter_all(all_vars(!str_detect(., "Prefer|other|Other"))) %>% 
   drop_na
+
+names(demographic_vars) <-  c(plot_labels, "Work setting")
+
+demographic_vars %<>% 
+  select(-`Country of residence`,
+         -`Geographic origin`)
 
 cats = apply(demographic_vars, 2, function(x) nlevels(as.factor(x)))
 
@@ -450,12 +462,13 @@ ggplot(data = mca1_obs_df,
                 y = Dim.2, 
                 label = rownames(mca1_vars_df), 
                 colour = Variable),
-            size = 2,
+            size = 5,
+            force = 10,
             bg.r = 0.1,
             bg.color = "white") +
   scale_colour_discrete(name = "Variable") +
   theme_bw(base_size = 12) +
-  theme(legend.position = c(0.7, 0.8))
+  theme(legend.position = c(0.8, 0.7))
 
 ggsave(here::here("figures/demographics-mca.png"),
        width = 10,

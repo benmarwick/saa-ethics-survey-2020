@@ -135,9 +135,133 @@ ggsave(plot = nw[[i]],
        height = 5)
 
 }
+```
+
+Can we get a summary of average disagreement for each demographic?
+
+```{r}
+decode_demographics()
+
+survey_data_likert_demo <- 
+bind_cols(survey_data_demographics, 
+          survey_data %>% 
+          select(!!likert_q, 
+                 rpa = `Are you a member of the RPA?`)) %>% 
+  relocate(rpa, .after = geoorigin) %>% 
+  drop_na() %>% 
+  filter_all(all_vars(!str_detect(., 
+                                  "Prefer|other|Other")))  %>% 
+  # high number == more disagree
+  mutate_at(vars(!!names(survey_data)[likert_q]), 
+            ~fct_rev(factor(., levels=mylevels)) ) %>% 
+  mutate_at(vars(!!names(survey_data)[likert_q]), 
+            ~as.numeric(.) ) 
+  
+
+# get col names
+demo_cols <- c(names(survey_data_likert_demo)[1:7])
+names(demo_cols) <-  
+  c("Ethnicity",
+    "LGBTQIA+",
+    "Gender",
+    "Age",
+    "Country of residence",
+    "Geographic origin",
+    "RPA member"
+  )
+p_cols <- names(survey_data_likert_demo)[8:ncol(survey_data_likert_demo)]
+
+mean_diss_out <- vector("list", length = length(p_cols))
+for(i in 1:length(p_cols)){
+
+demo_means <- 
+map(demo_cols,
+  ~bind_cols(
+  survey_data_likert_demo[.x],
+  survey_data_likert_demo[p_cols[i]]
+   ) %>% 
+  group_by(!!as.name(.x)) %>% 
+  summarise(mean_disagreement = mean(!!as.name(p_cols[i])),
+            n = n()) %>% 
+  rename(var = .x)
+ ) %>% 
+  bind_rows(.id = "demo_var")
+
+demo_values <- 
+map(demo_cols,
+  ~bind_cols(
+  survey_data_likert_demo[.x],
+  survey_data_likert_demo[p_cols[i]]
+   ) %>% 
+  rename(var = .x) 
+ ) %>% 
+  bind_rows(.id = "demo_var")
+
+# https://bookdown.org/Rmadillo/likert/is-there-a-significant-difference.html
+library(MASS)
+library(ordinal)
+library(bbmle)
+library(coin)
+
+# do a stat test for differences
+xy <- 
+demo_values %>% 
+  mutate(li = factor(!!as.name(p_cols[i]))) %>% 
+  mutate(var_fct = factor(var)) %>% 
+  nest_by(demo_var) %>% 
+  mutate(e_test = list(broom::tidy(kruskal.test(as.numeric(li) ~ factor(var), data = data)))) %>% 
+  unnest(e_test)  %>% 
+  unnest(data) %>% 
+  right_join(demo_means) %>% 
+  mutate(demo_var_test = paste0(demo_var, 
+                                " (H(", parameter, ") = ", 
+                                round(statistic, 2),
+                                ", p = ", round(p.value, 3) )) 
+
+shift_legend3 <- function(p) {
+    pnls <- cowplot::plot_to_gtable(p) %>% gtable::gtable_filter("panel") %>%
+      with(setNames(grobs, layout$name)) %>% purrr::keep(~identical(.x,zeroGrob()))
+
+    if( length(pnls) == 0 ) stop( "No empty facets in the plot" )
+
+    lemon::reposition_legend( p, "center", panel=names(pnls) )
+}
+
+mean_dis_plot <-         
+ggplot(xy) +
+  aes(var, 
+      mean_disagreement) +
+  geom_jitter(data = xy, 
+                   aes(var, 
+                       !!as.name(p_cols[i])),
+                   alpha = 0.1
+                   ) +
+    geom_point(colour = "red",
+               stroke = 2,
+               aes(size = n,
+                   shape = ifelse(p.value < 0.05, 16, 1))) +
+  scale_shape_identity() +
+  facet_wrap( ~ demo_var_test,
+              scales = "free") +
+  scale_y_continuous(limits = c(0,5), 
+                     name = "Mean disagreement") +
+  xlab("") +
+  coord_flip() +
+  theme_bw()
+
+mean_diss_out[[i]] <- shift_legend3(mean_dis_plot)
+
+
+ggsave(
+  here::here(paste0("figures/nine-principles-mean-dis-", i, ".png")),
+  plot = mean_diss_out[[i]] ,
+       width = 15,
+       height = 10)
+}
 
 
 ```
+
 
 
 
