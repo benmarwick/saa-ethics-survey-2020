@@ -24,6 +24,7 @@ library(patchwork)
 # load our custom functions
 source(here::here("analysis/functions.R"))
 load_survey_data()
+decode_demographics()
 ```
 
 
