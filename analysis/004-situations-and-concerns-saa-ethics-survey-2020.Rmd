@@ -206,7 +206,7 @@ Network plots for the high frequency words in the free text responses
 ```{r}
 situations_elaboration <- 
 situations %>% 
-  select(contains("Please")) %>% 
+  dplyr::select(contains("Please")) %>% 
    rename_all(~names(output) ) %>% 
   mutate(across(everything(), stringi::stri_trans_tolower))
 
@@ -284,7 +284,8 @@ survey_data %>%
   ),
   years = `How many years have you worked in/with archaeology?`,
   member = `Are you a current SAA member?`,
-  member = ifelse(str_detect("Yes", member), "yes", 'no'),
+  member = ifelse(str_detect("Yes", member), 
+                  "yes", 'no'),
   rpa = `Are you a member of the RPA?`,
   age = `What is your age?`,
   gender = `What is your gender identity? - Selected Choice`,

@@ -1,0 +1,356 @@
+---
+title: "Draft Preliminary Report on the Survey for the Revision of the SAA's Principles of Archaeological Ethics"
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+output: 
+  bookdown::html_document2:
+  number_sections: false
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE,
+                      message = FALSE,
+                      warning = FALSE,
+                      fig.retina = 2)
+```
+
+```{r load-pkgs}
+library(tidyverse)
+library(magrittr)
+library(likert)
+library(knitr)
+library(UpSetR)
+library(patchwork)
+
+# load our custom functions
+source(here::here("analysis/functions.R"))
+load_survey_data()
+decode_demographics()
+```
+
+
+Q: What do you see as being the primary ethical concerns in the field today?
+
+
+```{r}
+primary_concerns_demo <- 
+survey_data %>% 
+  mutate(work_setting = case_when(
+    str_detect(`What is your primary work setting? - Selected Choice`, "Academic") ~ "Academic",
+    str_detect(`What is your primary work setting? - Selected Choice`, "CRM") ~ "CRM", 
+    str_detect(`What is your primary work setting? - Selected Choice`, "Gov") ~ "Government",
+    TRUE ~ "other")
+  ) %>% 
+  select(`What do you see as being the primary ethical concerns in the field today?`,
+         work_setting) %>% 
+  bind_cols(survey_data_demographics)  %>% 
+  drop_na() %>% 
+  filter_all(all_vars(!str_detect(., 
+                                  "Prefer|other|Other"))) 
+```
+
+primary concerns keyword network plot
+
+```{r}
+library(quanteda)
+x_corp <- corpus(primary_concerns_demo, 
+                 text_field = "What do you see as being the primary ethical concerns in the field today?")
+
+set.seed(10)
+dfmat1 <- dfm(x_corp,
+              remove = c(stopwords("english"), 
+                         "archaeological",
+                         "archaeologists",
+                         "archaeology",
+                         "principle",
+                         "ethics",
+                         "ethical",
+                         "saa"), 
+              remove_punct = TRUE,
+              remove_numbers = TRUE) %>%
+   dfm_trim(min_termfreq = 5) 
+
+# drop the empty docs
+dfmat1  <- 
+  dfm_subset(dfmat1, ntoken(dfmat1) > 0)
+
+df_fcm <- fcm(dfmat1)
+top_fcm <- 
+  fcm_select(df_fcm, 
+             pattern = names(quanteda::topfeatures(dfmat1, n = 20)))
+nw <- textplot_network(top_fcm, 
+                       min_freq = 0.75, 
+                       edge_alpha = 0.3, 
+                       edge_size = 5)
+
+ggsave(plot = nw,
+       here::here("figures/primary-ethical-concerns-network.png"),
+       width = 5,
+       height = 5)
+
+
+```
+
+Primary concerns topic model and diagnostics
+
+```{r}
+library(stm)
+set.seed(12)
+
+stm_out <- 
+  stm(dfmat1, 
+      seed = 12,
+      init.type = "Spectral", 
+      K = 0, # 49 topics
+      prevalence = ~ work_setting + gender + age, 
+      data = docvars(dfmat1),
+      verbose = TRUE) 
+
+library(tidytext)
+td_beta <- tidy(stm_out)
+td_gamma <- tidy(stm_out, 
+                 matrix = "gamma",
+                 document_names = rownames(dfmat1))
+
+library(ggthemes)
+
+top_terms <- td_beta %>%
+  arrange(beta) %>%
+  group_by(topic) %>%
+  top_n(7, beta) %>%
+  arrange(-beta) %>%
+  select(topic, term) %>%
+  summarise(terms = list(term)) %>%
+  mutate(terms = map(terms, paste, collapse = ", ")) %>% 
+  unnest()
+
+gamma_terms <- td_gamma %>%
+  group_by(topic) %>%
+  summarise(gamma = mean(gamma)) %>%
+  arrange(desc(gamma)) %>%
+  left_join(top_terms, by = "topic") %>%
+  mutate(topic = paste0("Topic ", topic),
+         topic = reorder(topic, gamma))
+
+tm <- 
+gamma_terms %>%
+  top_n(20, gamma) %>%
+  ggplot(aes(topic, 
+             gamma, 
+             label = str_wrap(terms, 60), 
+             fill = topic)) +
+  geom_col(show.legend = FALSE) +
+  geom_text(hjust = 0, 
+            vjust = 0.5,
+            lineheight = .75,
+            nudge_y = 0.0005, 
+            size = 2.5) +
+  scale_fill_viridis_d(guide = "legend") +
+  coord_flip() +
+  scale_y_continuous(expand = c(0,0),
+                     limits = c(0, 0.09),
+                     labels = scales::percent_format()) +
+  labs(x = NULL, y = expression(gamma),
+       title = "Top 20 topics by prevalence in the question\n'What do you see as being the primary ethical concerns in the field today?'",
+       subtitle = "With the top words that contribute to each topic") +
+  theme_bw()
+
+# https://francescocaberlin.blog/2019/07/01/messing-around-with-stm-part-iiib-model-analysis/
+ExSem <-
+  as.data.frame(cbind(
+    k = c(1:stm_out$settings$dim$K),
+    exclusivity(stm_out),
+    semanticCoherence(model = stm_out, 
+                      dfmat1)
+  ))
+
+colnames(ExSem)<-c("k", "Exclusivity", "SemanticCoherence")
+
+ExSem_gamma <- 
+gamma_terms %>% 
+  mutate(k = parse_number(as.character(topic))) %>% 
+  left_join(ExSem)
+
+library(ggrepel)
+plotexcoer <-
+  ggplot(ExSem_gamma, 
+         aes(SemanticCoherence, 
+             Exclusivity,
+             colour = gamma,
+             size = gamma)) +
+  geom_point(alpha = 0.7) +
+  geom_text_repel(aes(label = k)) +
+  labs(x = "Semantic coherence",
+       y = "Exclusivity",
+       title = "Comparing topic exclusivity and topic semantic coherence") +
+  scale_colour_viridis_c(guide = "legend") +
+  theme_bw()
+
+library(cowplot)
+plot_grid(
+  tm, 
+  plotexcoer,
+  align = "h"
+  )
+
+ggsave(here::here('figures/primary-ethical-concerns-topic-model.png'),
+       height = 7,
+       width = 15)
+```
+
+Primary concerns topic model: topics and covariates
+
+```{r}
+
+K_est <- stm_out$settings$dim$K
+
+topics_of_interest <- 
+  ExSem_gamma %>% 
+  arrange(desc(gamma)) %>% 
+  slice(1:3, 11) %>% 
+  pull(k)
+
+topics_of_interest_terms <- 
+    ExSem_gamma %>% 
+  arrange(desc(gamma)) %>% 
+  slice(1:3, 11) %>% 
+  pull(terms)
+
+# get vec of covars
+covars <- names(primary_concerns_demo)[2:ncol(primary_concerns_demo)]
+
+covars_pretty_names <- 
+  c("Work setting",
+    "Ethnicity",
+    "LGBTQIA+",
+    "Gender",
+    "Age",
+    "Country of residence",
+    "Geographic origin"
+  )
+
+for(j in seq_along(topics_of_interest_terms)){
+
+covars_output <- vector("list", length = length((covars)))
+
+for(i in seq_along(covars_output)){
+prep <- estimateEffect(as.formula(paste("1:K_est ~", covars[i])),
+                       stm_out,
+                       docvars(dfmat1) %>% 
+                         mutate_all(as.factor),
+                       uncertainty = "Global")
+
+plot_output <- 
+plot.estimateEffect(
+  prep,
+  model = stm_out,
+  covariate = covars[i],
+  topics = topics_of_interest[j],
+  method = "pointestimate",
+  xlim = c(-.25, 0.25),
+  omit.plot = TRUE
+)
+
+Result_tbl <-
+tibble(means = unlist(plot_output$means),
+       topics = unlist(plot_output$topics),
+       labels = unlist(plot_output$labels),
+       ci_lower  = unname(unlist(data.frame(plot_output$ci)[1,])),
+       ci_upper = unname(unlist(data.frame(plot_output$ci)[2,]))) %>% 
+  arrange(desc(means)) %>% 
+  mutate(order = 1:n())
+
+
+highlight_tbl <-
+  Result_tbl %>%
+  filter(ci_lower > 0 | ci_upper < 0)
+
+normal_tbl <-
+  Result_tbl %>%
+  filter(ci_lower < 0) %>%
+  filter(ci_upper > 0)
+
+highlight_size = 2.2
+normal_size = 2.2
+normal_colour = "grey30"
+
+covars_output[[i]] <-
+ggplot() +
+  theme_bw() +
+  theme(axis.ticks.y = element_blank(),
+        axis.text.y = element_blank()) +
+  geom_vline(xintercept = 0,
+             colour = "red") +
+  geom_linerange(data = normal_tbl,
+               aes(y = order,
+                   xmin =ci_lower,
+                   xmax = ci_upper),
+               colour = normal_colour) +
+  geom_linerange(data = highlight_tbl,
+                 aes(y = order,
+                     xmin = ci_lower,
+                     xmax = ci_upper),
+                 colour = "red") +
+  geom_linerange(data = highlight_tbl,
+                 aes(y = order,
+                     xmin =ci_lower,
+                     xmax = ci_upper),
+                 colour = "red") +
+  geom_point(data = normal_tbl,
+             aes(means,
+                 order),
+             colour = normal_colour) +
+  geom_point(data = highlight_tbl,
+             aes(means,
+                 order),
+             pch = 17,
+             colour = "red",
+             size = 2) +
+  geom_text(data = normal_tbl,
+            aes(means,
+                order + 0.5,
+                label = labels),
+            size = normal_size) +
+  geom_text(data = highlight_tbl,
+            aes(means,
+                order + 0.5,
+                label = labels),
+            size = highlight_size,
+            colour = "red") +
+  xlab("Estimate") +
+  ylab(covars_pretty_names[i]) 
+
+}
+
+library(cowplot)
+
+
+plot_grid( 
+          plotlist = covars_output
+) +
+  annotate("text", 
+           x = 0.4,
+           y = 0.2,
+           size = 6,
+           hjust = 0,
+           label = paste0("Topic ", 
+                          topics_of_interest[j], 
+                          ": ",
+                          str_wrap(topics_of_interest_terms[j], 40)))
+
+
+ggsave(here::here(paste0('figures/primary-ethical-concerns-topic-model-', 
+                         topics_of_interest[j],
+                         '-covars.png')),
+       height = 8,
+       width = 8)
+       
+}
+
+
+```
+
+Q: What should be the purpose of the SAA's ethical document?  
+
+Q: What type of ethical document(s) do you feel would best serve the SAA membership? 
+
+Q: Are there additional ethical issues that should be addressed by the Principles? 
