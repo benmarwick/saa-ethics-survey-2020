@@ -537,7 +537,7 @@ ggplot(what_type_of_doc_by_year_worked,
 
 ###  Responses to the question "What should be the purpose of the SAA's ethical document?"  {-}
 
-```{r,}
+```{r}
 purpose_options <- c(
 "Establish best practices for the profession",
 "Establish and enforce best practices for the profession",

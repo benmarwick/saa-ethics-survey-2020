@@ -351,6 +351,170 @@ ggsave(here::here(paste0('figures/primary-ethical-concerns-topic-model-',
 
 Q: What should be the purpose of the SAA's ethical document?  
 
+```{r}
+purpose_options <- c(
+"Establish best practices for the profession",
+"Establish and enforce best practices for the profession",
+"Establish expectations for the behavior of professionals",
+"Demonstrate integrity of profession",
+"For use in education and training")
+
+purpose_of_ethics_doc <- 
+survey_data %>% 
+  mutate(work_setting = case_when(
+    str_detect(`What is your primary work setting? - Selected Choice`, "Academic") ~ "Academic",
+    str_detect(`What is your primary work setting? - Selected Choice`, "CRM") ~ "CRM", 
+    str_detect(`What is your primary work setting? - Selected Choice`, "Gov") ~ "Government",
+    TRUE ~ "other")
+  ) %>% 
+  select(starts_with("What should be the purpose of the SAA"),
+         work_setting) %>% 
+  bind_cols(survey_data_demographics)  %>% 
+  drop_na() %>% 
+  filter_all(all_vars(!str_detect(., 
+                                  "Prefer|other|Other"))) %>% 
+  drop_na() 
+```
+
+Purpose of doc ranking
+
+```{r}
+purpose_of_ethics_doc_wide_fn <- 
+  function(x) {
+  x %>% 
+  set_names(str_c("rank ", 1:length(purpose_options))) %>% 
+  mutate(id = row_number()) %>% 
+  pivot_longer(cols = -id,
+               names_to = "variable",
+               values_to = "value") %>% 
+  mutate(value = case_when(
+    value == 1 ~ purpose_options[1],
+    value == 2 ~ purpose_options[2],
+    value == 3 ~ purpose_options[3],
+    value == 4 ~ purpose_options[4],
+    value == 5 ~ purpose_options[5],
+    TRUE    ~ "other"
+  )) 
+  }
+
+purpose_of_ethics_doc_wide <-  
+  purpose_of_ethics_doc_wide_fn(purpose_of_ethics_doc[ , 1:5])
+
+purpose_of_ethics_doc_wide$value <- 
+  factor(purpose_of_ethics_doc_wide$value, levels = purpose_options)
+```
+
+Purpose of doc plots
+
+```{r}
+purpose_of_doc_plot <- 
+purpose_of_ethics_doc_wide %>% 
+  mutate(rank = parse_number(variable)) %>% 
+  group_by(value) %>% 
+  summarise(sum_ranks = sum(rank)) %>% 
+  arrange(desc(sum_ranks)) %>% 
+  ggplot() +
+  aes(reorder(str_wrap(value, 20), 
+              -sum_ranks),
+      sum_ranks,
+      fill = value) +
+  geom_col() +
+  coord_flip() +
+  theme_bw() +
+  xlab("") +
+  ylab("Sum of ranks (shorter bar indicates higher rank)") +
+  scale_fill_viridis_d()  +
+  guides(fill=FALSE)
+
+purpose_of_doc_stacked_plot <- 
+purpose_of_ethics_doc_wide %>% 
+  mutate(rank = parse_number(variable)) %>% 
+  ggplot() +
+  aes(rank,
+      id, 
+      fill = value) +
+   geom_bar(position = "fill", 
+            stat = "identity") +
+  theme_bw() +
+  xlab("Rank") +
+  ylab("Proportion") +
+  scale_fill_viridis_d() +
+  guides(fill=FALSE)
+
+library(cowplot)
+plot_grid(purpose_of_doc_plot, 
+          purpose_of_doc_stacked_plot)
+
+
+ggsave(here::here(paste0('figures/purpose-of-doc.png')),
+       height = 6,
+       width = 10)
+       
+```
+
+Purpose of documents rankings by various demographic variables
+
+
+```{r}
+purpose_of_ethics_doc_wide_demo <- 
+purpose_of_ethics_doc %>% 
+  mutate(id = 1:n()) %>% 
+  left_join(purpose_of_ethics_doc_wide) %>% 
+    mutate(rank = parse_number(variable)) 
+
+names(purpose_of_ethics_doc_wide_demo)[6:12] <- 
+  c("Work setting",
+    "Ethnicity",
+    "LGBTQIA+",
+    "Gender",
+    "Age",
+    "Country of residence",
+    "Geographic origin"
+  )
+
+# for each demo var
+purpose_of_ethics_doc_wide_demo_wide <- 
+purpose_of_ethics_doc_wide_demo %>% 
+  pivot_longer(cols = `Work setting`:`Geographic origin`,
+    names_to = "var1",
+    values_to = "val1")
+
+purpose_of_ethics_doc_wide_demo_wide_means <- 
+purpose_of_ethics_doc_wide_demo_wide %>% 
+  group_by(value, var1, val1) %>% 
+  summarise(mean_rank = mean(rank)) 
+
+purpose_of_ethics_doc_wide_demo_wide_means_plots <- 
+purpose_of_ethics_doc_wide_demo_wide_means %>% 
+  ungroup %>% 
+  nest_by(var1) %>% 
+  mutate(plot_out = list(ggplot(data = data) +
+  aes(value, 
+      mean_rank,
+      group = val1,
+      colour = val1) +
+  geom_point(size = 4) +
+  geom_line() +
+  theme_bw() +
+  xlab("") +
+  ylab("") +
+  scale_x_discrete(labels = function(x) str_wrap(x, width = 10)) +
+  scale_color_viridis_d(name = var1) +
+  theme(axis.text.x = element_text(size = 6)) +
+  scale_y_reverse() ))
+
+library(cowplot)
+plot_grid(plotlist = purpose_of_ethics_doc_wide_demo_wide_means_plots$plot_out,
+          align = "hv")
+
+ggsave(here::here(paste0('figures/purpose-of-doc-demographics.png')),
+       height = 10,
+       width = 17)
+
+```
+
+
+
 Q: What type of ethical document(s) do you feel would best serve the SAA membership? 
 
 Q: Are there additional ethical issues that should be addressed by the Principles? 
