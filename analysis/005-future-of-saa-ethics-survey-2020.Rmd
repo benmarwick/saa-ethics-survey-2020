@@ -656,6 +656,283 @@ ggsave(here::here(paste0('figures/type-of-doc-years-worked.png')),
 
 Q: Are there additional ethical issues that should be addressed by the Principles? 
 
+```{r}
+plot_single_option_question(survey_questions_vec[single_response[3]], 
+                                 base_size = 12,
+                                  wrap = 60,
+                                 title_wrap = 60,
+                            sort_bars = TRUE)
+
+ggsave(here::here(paste0('figures/additional-ethical-issues-plot.png')),
+       height = 3,
+       width  = 7)
+
+
+# percentages
+library(janitor)
+additional_ethical_issues_tally <- 
+survey_data %>% 
+  select(q = survey_questions_vec[single_response[3]]) %>% 
+  group_by(q) %>% 
+  tabyl(q)
+```
+
+```{r}
+additional_ethical_issues <- 
+survey_data %>% 
+  mutate(work_setting = case_when(
+    str_detect(`What is your primary work setting? - Selected Choice`, "Academic") ~ "Academic",
+    str_detect(`What is your primary work setting? - Selected Choice`, "CRM") ~ "CRM", 
+    str_detect(`What is your primary work setting? - Selected Choice`, "Gov") ~ "Government",
+    TRUE ~ "other")
+  ) %>% 
+  select(starts_with("Are there additional ethical issues"),
+         work_setting) %>% 
+  bind_cols(survey_data_demographics)  %>% 
+  drop_na() %>% 
+  filter_all(all_vars(!str_detect(., 
+                                  "Prefer|other|Other"))) %>% 
+  drop_na() 
+
+names(additional_ethical_issues) <- 
+  c("Additional ethical issues",
+    "Work setting",
+    "Ethnicity",
+    "LGBTQIA+",
+    "Gender",
+    "Age",
+    "Country of residence",
+    "Geographic origin"
+  )
+
+# by dmographic
+
+
+library(janitor)
+additional_ethical_issues_tally %>% 
+  ungroup() %>% 
+  group_by(`Additional ethical issues`) %>% 
+  tally %>% 
+  mutate(perc = n / sum(n))
+
+
+ggplot(additional_ethical_issues_tally) +
+  aes(value, 
+      n,
+      fill = `Additional ethical issues`) +
+  geom_col() +
+  facet_wrap( ~ name, scales = "free") +
+   scale_x_discrete(labels = function(x) str_wrap(x, width = 10)) +
+    scale_fill_viridis_d(name = "") +
+  theme_bw() +
+  theme(axis.text.x = element_text(size = 6),
+                legend.position = c(.7, 
+                                    .2))  +
+  xlab("") +
+  ylab("")
+
+ggsave(here::here(paste0('figures/additional-ethical-issues-demo-plot.png')),
+       height = 8,
+       width  = 14)
+```
+
+
+Additional ethical issues - free text 
+
+```{r}
+
+
+
+# network plot ------------------------
+additional <- 
+survey_data %>% 
+  select(survey_questions_vec[36]) %>% 
+  drop_na()  %>% 
+  pull() %>% 
+  tolower() 
+
+library(quanteda)
+additional_cor <- corpus(additional)
+
+set.seed(10)
+dfmat2 <- dfm(additional,
+              remove = c(stopwords("english"), 
+                         "archaeological",
+                         "archaeologists",
+                         "archaeology",
+                         "see",
+                         "previous",
+                         "comments",
+                         "need",
+                         "think",
+                         "also",
+                         "issues",
+                         "issue",
+                         "needs",
+                         "can",
+                         "saa",
+                         "address",
+                         "many",
+                         "ethics",
+                         "ethical",
+                         "principle",
+                         "principles",
+                         "just",
+                         "specific",
+                         "really",
+                         "much",
+                         "better",
+                         "another",
+                         "mentioned",
+                         "certain",
+                         "like",
+                         "probably",
+                         "may",
+                         "moment",
+                         "additional"), 
+              remove_punct = TRUE,
+              remove_numbers = TRUE) %>%
+   dfm_trim(min_termfreq = 3)
+
+# basic wordcloud
+wc2 <- ~{
+  textplot_wordcloud(dfmat2, 
+                   color = rev(RColorBrewer::brewer.pal(10, "RdBu")))
+}
+
+# word network
+df_fcm2 <- fcm(dfmat2)
+top_fcm2 <- fcm_select(df_fcm2, pattern = names(quanteda::topfeatures(dfmat2, n = 20)))
+nw2 <- textplot_network(top_fcm2, 
+                       min_freq = 0.75, 
+                       edge_alpha = 0.3, 
+                       edge_size = 5)
+
+
+# topic model plot
+library(stm)
+
+stm_out2 <- 
+  stm(dfmat2, 
+      init.type="Spectral", 
+      K = 0, # 45 topics
+      verbose = FALSE) 
+
+library(tidytext)
+td_beta2 <- tidy(stm_out2)
+td_gamma2 <- tidy(stm_out2, 
+                 matrix = "gamma",
+                 document_names = rownames(dfmat2))
+
+library(ggthemes)
+
+top_terms2 <- td_beta2 %>%
+  arrange(beta) %>%
+  group_by(topic) %>%
+  top_n(7, beta) %>%
+  arrange(-beta) %>%
+  select(topic, term) %>%
+  summarise(terms = list(term)) %>%
+  mutate(terms = map(terms, paste, collapse = ", ")) %>% 
+  unnest()
+
+gamma_terms2 <- td_gamma2 %>%
+  group_by(topic) %>%
+  summarise(gamma = mean(gamma)) %>%
+  arrange(desc(gamma)) %>%
+  left_join(top_terms2, by = "topic") %>%
+  mutate(topic = paste0("Topic ", topic),
+         topic = reorder(topic, gamma))
+
+tm2 <- 
+gamma_terms2 %>%
+  top_n(20, gamma) %>%
+  ggplot(aes(topic, 
+             gamma, 
+             label = str_wrap(terms, 50), 
+             fill = topic)) +
+  scale_fill_viridis_d() +
+  geom_col(show.legend = FALSE) +
+  geom_text(hjust = 0, 
+            vjust = 0.5,
+            lineheight = .85,
+            nudge_y = 0.0005, 
+            size = 3) +
+  coord_flip() +
+  scale_y_continuous(expand = c(0,0),
+                     limits = c(0, 0.08),
+                     labels = scales::percent_format()) +
+  labs(x = NULL, y = expression(gamma),
+       title = "Top 20 topics by prevalence in the question\n'Are there additional ethical issues that should be addressed by the Principles?'",
+       subtitle = "With the top words that contribute to each topic") +
+  theme_bw()
+
+
+# https://francescocaberlin.blog/2019/07/01/messing-around-with-stm-part-iiib-model-analysis/
+ExSem_add <-
+  as.data.frame(cbind(
+    k = c(1:stm_out2$settings$dim$K),
+    exclusivity(stm_out2),
+    semanticCoherence(model = stm_out2, 
+                      dfmat2)
+  ))
+
+colnames(ExSem_add)<-c("k", "Exclusivity", "SemanticCoherence")
+
+ExSem_add_gamma <- 
+gamma_terms2 %>% 
+  mutate(k = parse_number(as.character(topic))) %>% 
+  left_join(ExSem_add)
+
+library(ggrepel)
+plotexcoer <-
+  ggplot(ExSem_add_gamma, 
+         aes(SemanticCoherence, 
+             Exclusivity,
+             colour = gamma,
+             size = gamma)) +
+  geom_point(alpha = 0.7) +
+  geom_text_repel(aes(label = k),
+                  force = 10) +
+  labs(x = "Semantic coherence",
+       y = "Exclusivity",
+       title = "Comparing topic exclusivity and topic semantic coherence") +
+  scale_colour_viridis_c(guide = "legend") +
+  theme_bw() +
+  theme(
+        legend.position = c(.9, 
+                            .2)
+        )
+
+
+library(cowplot)
+library(gridGraphics)
+
+dev.off()
+# need to make the plot panel big to avoid some 'pin' error
+plot_grid(plot_grid(wc2, nw2, 
+                    ncol = 2,
+                    labels=c("A","B")),
+          plot_grid(tm2, plotexcoer,
+                    labels=c("C","D"),
+                    align = "hv"),
+          nrow = 2,
+          rel_heights = c(1, 2)) + 
+  panel_border(remove = TRUE)
+
+ggsave(here::here('figures/additional-ethical-issues-text-panel.png'),
+       height = 12,
+       width = 12)
+
+dev.off()
+
+```
+
+
+
+
+
+
 
 
 
