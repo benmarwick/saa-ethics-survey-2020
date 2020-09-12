@@ -445,7 +445,6 @@ library(cowplot)
 plot_grid(purpose_of_doc_plot, 
           purpose_of_doc_stacked_plot)
 
-
 ggsave(here::here(paste0('figures/purpose-of-doc.png')),
        height = 6,
        width = 10)
@@ -453,7 +452,6 @@ ggsave(here::here(paste0('figures/purpose-of-doc.png')),
 ```
 
 Purpose of documents rankings by various demographic variables
-
 
 ```{r}
 purpose_of_ethics_doc_wide_demo <- 
@@ -482,7 +480,8 @@ purpose_of_ethics_doc_wide_demo %>%
 purpose_of_ethics_doc_wide_demo_wide_means <- 
 purpose_of_ethics_doc_wide_demo_wide %>% 
   group_by(value, var1, val1) %>% 
-  summarise(mean_rank = mean(rank)) 
+  summarise(mean_rank = mean(rank),
+            n = n()) 
 
 purpose_of_ethics_doc_wide_demo_wide_means_plots <- 
 purpose_of_ethics_doc_wide_demo_wide_means %>% 
@@ -493,7 +492,7 @@ purpose_of_ethics_doc_wide_demo_wide_means %>%
       mean_rank,
       group = val1,
       colour = val1) +
-  geom_point(size = 4) +
+  geom_point(aes(size = n)) +
   geom_line() +
   theme_bw() +
   xlab("") +
@@ -508,13 +507,171 @@ plot_grid(plotlist = purpose_of_ethics_doc_wide_demo_wide_means_plots$plot_out,
           align = "hv")
 
 ggsave(here::here(paste0('figures/purpose-of-doc-demographics.png')),
-       height = 10,
-       width = 17)
+       height = 14,
+       width = 19)
 
 ```
 
-
-
 Q: What type of ethical document(s) do you feel would best serve the SAA membership? 
+```{r}
+### Responses to the question "What type of ethical document(s) do you feel would best serve the SAA membership?" 
+
+# What type of ethical document(s) do you feel would best serve the SAA membership? 
+what_type_of_doc <- 
+  plot_multiple_option_question(survey_questions_vec[multiple_response[3]])
+```
+
+```{r what-type-document-plot, fig.cap=what_type_of_doc$upset_plot_caption, fig.height=3}
+
+png(here::here("figures/what-type-doc-upset-plot.png"),
+    width = 10,
+    height = 5,
+    units = "in",
+    res = 300)
+what_type_of_doc$upset_plot
+dev.off()
+```
+
+Type of ethical document(s) by demographic group "What type of ethical document"
+
+```{r}
+type_of_ethical_doc <- 
+survey_data %>% 
+  mutate(work_setting = case_when(
+    str_detect(`What is your primary work setting? - Selected Choice`, "Academic") ~ "Academic",
+    str_detect(`What is your primary work setting? - Selected Choice`, "CRM") ~ "CRM", 
+    str_detect(`What is your primary work setting? - Selected Choice`, "Gov") ~ "Government",
+    TRUE ~ "other")
+  ) %>% 
+  select(starts_with("What type of ethical document"),
+         work_setting) %>% 
+  bind_cols(survey_data_demographics)  %>% 
+  drop_na() %>% 
+  filter_all(all_vars(!str_detect(., 
+                                  "Prefer|other|Other"))) %>% 
+  drop_na() 
+
+names(type_of_ethical_doc) <- 
+  c("Type of document",
+    "Work setting",
+    "Ethnicity",
+    "LGBTQIA+",
+    "Gender",
+    "Age",
+    "Country of residence",
+    "Geographic origin"
+  )
+
+type_of_ethical_doc_demo_plots <- 
+type_of_ethical_doc %>% 
+  pivot_longer(`Work setting`:`Geographic origin`) %>% 
+  separate_rows(`Type of document`, sep = ",") %>% 
+  mutate(`Type of document` = factor(`Type of document`, 
+                                     levels = what_type_of_doc$tally$x)) %>% 
+  group_by(name, value) %>% 
+  mutate(n_in_demo_group = n()) %>% 
+  group_by(name, value, `Type of document`) %>% 
+  summarise(n_doc_type = n(),
+            n = unique(n_in_demo_group)) %>% 
+  mutate(freq_doc_type = n_doc_type / sum(n_doc_type))  %>% 
+  ungroup() %>% 
+  nest_by(name) %>% 
+  mutate(type_plot = list(ggplot(data) +
+                           aes(`Type of document`,
+                           freq_doc_type,
+                           colour = value,
+                           group = value) +
+                           geom_line() +
+                           geom_point(aes(size = n)) +
+                           xlab("") +
+                           ylab("") +
+                           theme_bw() +
+              scale_x_discrete(labels = function(x) str_wrap(x, width = 10)) +
+              scale_color_viridis_d(name = name) +
+              theme(axis.text.x = element_text(size = 6)) 
+              )
+         )
+
+library(cowplot)
+plot_grid(plotlist = type_of_ethical_doc_demo_plots$type_plot,
+          align = "hv")
+
+ggsave(here::here(paste0('figures/type-of-doc-demographics.png')),
+       height = 14,
+       width = 19)
+
+type_age_corr <- 
+type_of_ethical_doc %>% 
+  pivot_longer(`Work setting`:`Geographic origin`) %>% 
+  separate_rows(`Type of document`, sep = ",") %>% 
+  mutate(`Type of document` = factor(`Type of document`, 
+                                     levels = what_type_of_doc$tally$x)) %>% 
+  filter(name == "Age") %>% 
+  mutate(value = factor(value, levels = age_fct)) 
+
+# years in archaeology by doc type
+what_type_of_doc_by_year_worked <- 
+  survey_data %>% 
+  select(survey_questions_vec[multiple_response[3]],
+         `How many years have you worked in/with archaeology?`) %>% 
+  rename(what_type = survey_questions_vec[multiple_response[3]],
+         years_worked = `How many years have you worked in/with archaeology?`) %>% 
+  drop_na() %>% 
+  separate_rows(what_type, 
+                sep = ",(?=[[:upper:]])") %>% 
+  group_by(what_type, 
+           years_worked) %>% 
+  tally() %>% 
+  left_join(what_type_of_doc$tally,
+            by = c("what_type" = "x"))
+
+ggplot(what_type_of_doc_by_year_worked,
+       aes(years_worked,
+           n.x,
+           colour = what_type)) +
+  geom_point(alpha = 0.3) +
+  geom_smooth(aes(size = log10(n.y)), 
+              se = FALSE) +
+  scale_color_viridis_d(name = "Document type", 
+                        alpha = 0.8) +
+  theme_minimal(base_size = 14) +
+  theme(
+        legend.position = c(.8, 
+                            .8),
+        legend.box="vertical"
+        ) +
+  guides(colour=guide_legend(nrow=6, 
+                             byrow=TRUE,
+                             override.aes = list(size=5)),
+         size = FALSE) +
+  coord_cartesian(ylim = c(0, 15)) +
+  xlab("Years worked in archaeology") +
+  ylab("Count of responses")
+
+ggsave(here::here(paste0('figures/type-of-doc-years-worked.png')),
+       height = 7,
+       width  = 12)
+```
+
 
 Q: Are there additional ethical issues that should be addressed by the Principles? 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
