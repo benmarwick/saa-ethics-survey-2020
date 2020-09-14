@@ -29,7 +29,7 @@ likert_general <<- str_which(survey_questions_vec, "^The SAA Principles of Ethic
 
 # decode demographic variables
 decode_demographics <- function(){
-  
+  library(tidyverse)
   key_sheets <- readxl::excel_sheets(here::here("data/raw-data/SAA Ethics TF 2 Survey - 09-01-20 - Key.xlsx"))
   key_tbl <- map(key_sheets[-1], 
                  ~readxl::read_excel(here::here("data/raw-data/SAA Ethics TF 2 Survey - 09-01-20 - Key.xlsx"),

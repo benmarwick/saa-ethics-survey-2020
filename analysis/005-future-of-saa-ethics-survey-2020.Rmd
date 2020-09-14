@@ -48,6 +48,70 @@ survey_data %>%
                                   "Prefer|other|Other"))) 
 ```
 
+This question got the most words of all in the survey
+
+```{r}
+
+age_fct <- c("18-22", "23-29", "30-39", "40-49", "50-59", "60-69", "70 and over", "Prefer not to answer")
+
+primary_concerns_demo1 <- primary_concerns_demo
+
+names(primary_concerns_demo1)[2:8] <- 
+    c("Work setting",
+      "Ethnicity",
+    "LGBTQIA+",
+    "Gender",
+    "Age",
+    "Country of residence",
+    "Geographic origin"
+  )
+
+library(broom)
+primary_concerns_demo_response_length <- 
+primary_concerns_demo1 %>% 
+  mutate(word_count = stringi::stri_count_words(`What do you see as being the primary ethical concerns in the field today?`)) %>% 
+  mutate_at(vars(`Work setting`:`Geographic origin`), as.factor) %>% 
+  mutate(Age = factor(Age, levels = age_fct)) %>% 
+  select(`Work setting`:`Geographic origin` ,
+         word_count) %>% 
+  pivot_longer(-word_count)
+
+library(ggbeeswarm)
+library(papaja)
+primary_concerns_demo_response_length_plots <- 
+primary_concerns_demo_response_length %>% 
+  nest_by(name) %>% 
+  mutate(aov_out =  list(aov(word_count ~ value, data = data))) %>%
+  mutate(aov_str = list(apa_print(aov_out))) %>% 
+  rowwise() %>% 
+  mutate(aov_str_chr = str_remove_all(aov_str$statistic$value,
+                                      "\\$|\\{|\\}|\\\\|mathit")) %>% 
+  mutate(plots = list( 
+  ggplot(data,
+         aes(
+          str_wrap(value, 15),
+         word_count
+         )) +
+  geom_quasirandom(
+         alpha = 0.3) +
+    scale_y_log10() +
+    xlab("") +
+    ylab("") +
+    ggtitle(name, 
+            subtitle = aov_str_chr) + 
+    theme_bw() +
+    theme(axis.text.x = element_text(size = 6))
+  ))
+
+library(cowplot)
+plot_grid(plotlist = primary_concerns_demo_response_length_plots$plots)
+
+ggsave(here::here("figures/primary-ethical-concerns-word-count.png"),
+       width = 18,
+       height = 10)
+
+```
+
 primary concerns keyword network plot
 
 ```{r}
@@ -206,13 +270,13 @@ K_est <- stm_out$settings$dim$K
 topics_of_interest <- 
   ExSem_gamma %>% 
   arrange(desc(gamma)) %>% 
-  slice(1:3, 11) %>% 
+  slice(1:4, 11) %>% 
   pull(k)
 
 topics_of_interest_terms <- 
     ExSem_gamma %>% 
   arrange(desc(gamma)) %>% 
-  slice(1:3, 11) %>% 
+  slice(1:4, 11) %>% 
   pull(terms)
 
 # get vec of covars
@@ -368,6 +432,7 @@ survey_data %>%
     TRUE ~ "other")
   ) %>% 
   select(starts_with("What should be the purpose of the SAA"),
+         rpa = `Are you a member of the RPA?`,
          work_setting) %>% 
   bind_cols(survey_data_demographics)  %>% 
   drop_na() %>% 
@@ -460,8 +525,9 @@ purpose_of_ethics_doc %>%
   left_join(purpose_of_ethics_doc_wide) %>% 
     mutate(rank = parse_number(variable)) 
 
-names(purpose_of_ethics_doc_wide_demo)[6:12] <- 
-  c("Work setting",
+names(purpose_of_ethics_doc_wide_demo)[6:13] <- 
+  c("RPA member",
+    "Work setting",
     "Ethnicity",
     "LGBTQIA+",
     "Gender",
@@ -473,7 +539,7 @@ names(purpose_of_ethics_doc_wide_demo)[6:12] <-
 # for each demo var
 purpose_of_ethics_doc_wide_demo_wide <- 
 purpose_of_ethics_doc_wide_demo %>% 
-  pivot_longer(cols = `Work setting`:`Geographic origin`,
+  pivot_longer(cols = `RPA member`:`Geographic origin`,
     names_to = "var1",
     values_to = "val1")
 
@@ -544,6 +610,7 @@ survey_data %>%
     TRUE ~ "other")
   ) %>% 
   select(starts_with("What type of ethical document"),
+         rpa = `Are you a member of the RPA?`,
          work_setting) %>% 
   bind_cols(survey_data_demographics)  %>% 
   drop_na() %>% 
@@ -553,6 +620,7 @@ survey_data %>%
 
 names(type_of_ethical_doc) <- 
   c("Type of document",
+    "RPA member",
     "Work setting",
     "Ethnicity",
     "LGBTQIA+",
@@ -564,7 +632,7 @@ names(type_of_ethical_doc) <-
 
 type_of_ethical_doc_demo_plots <- 
 type_of_ethical_doc %>% 
-  pivot_longer(`Work setting`:`Geographic origin`) %>% 
+  pivot_longer(`RPA member`:`Geographic origin`) %>% 
   separate_rows(`Type of document`, sep = ",") %>% 
   mutate(`Type of document` = factor(`Type of document`, 
                                      levels = what_type_of_doc$tally$x)) %>% 

@@ -21,34 +21,13 @@ library(tidyverse)
 library(likert)
 library(knitr)
 library(patchwork)
+
+# load our custom functions
+source(here::here("analysis/functions.R"))
+load_survey_data()
 ```
 
 A factor analysis is a model of the measurement of one or more latent variables. This latent variable cannot be directly measured with a single variable (e.g. intelligence, social anxiety, soil health). Instead, it is seen through the relationships it causes in a set of outcome variables.
-
-```{r}
-survey_data <- 
-  readr::read_csv("data/raw-data/Data Pull 06-10-20 CSV.csv") %>% 
-  select(-starts_with("X"))
-
-# names from the first data pull only
-# saveRDS(names(survey_data), here::here("data/derived-data/column-names.rds"))
-
-# get col names from first data pull
-saved_names <- readRDS(here::here("data/derived-data/column-names.rds"))
-
-# only keep cols that are in the first data pull
-survey_data <- 
-  survey_data %>% 
-  select(saved_names)
-
-# to easily browse the questions:
-survey_questions_tbl <- tibble(questions = names(survey_data))
-survey_questions_vec <- names(survey_data)
-
-# to easily browse the questions:
-likert <- str_which(survey_questions_vec, "^Principle")
-likert_general <- str_which(survey_questions_vec, "^The SAA Principles of Ethics")
-```
 
 We focus on the questions about the nine Principles and the Likert-type responses. 
 
@@ -57,7 +36,7 @@ We focus on the questions about the nine Principles and the Likert-type response
   
   output_with_ID <- 
   survey_data %>% 
-  select(!!likert,  
+  select(!!likert_q,  
          # variables we may want to group by 
          `Response ID`,
          `Are you a current SAA member?`) %>% 
@@ -81,11 +60,12 @@ We focus on the questions about the nine Principles and the Likert-type response
       "Public Education",
       "Intellectual Property",
       "Public Reporting",
-      "Records and Preservation",
-      "Training and Resources",
-      "Safe Educational and Workplace"
+      "Records & Preservation",
+      "Training & Resources",
+      "Safe Edu & Workplace"
       )
   
+names(output) <- short_principles
 names(output) <- str_remove_all(short_principles, " ")
 ```
 
@@ -126,11 +106,14 @@ r.poly <- polychoric(data.matrix(output))
 
 library(corrplot)
 # https://rpubs.com/melike/corrplot
+
+corrplot_output <- ~{
  corrplot(
    r.poly$rho,
    method = "square",
    outline = FALSE,
    addgrid.col = "darkgray",
+   rect.lwd = 4,
    order = "hclust",
    rect.col = "black",
    cl.pos = "b",
@@ -142,6 +125,13 @@ library(corrplot)
    # diag = FALSE,
    #type="lower"
  )
+}
+
+cowplot::plot_grid(corrplot_output)
+ggsave(here::here(paste0('figures/nine-principles-factor-corrplot.png')),
+       height = 8,
+       width = 8)
+
  
 ```
 
@@ -154,11 +144,16 @@ We computed a hierarchical cluster analysis on the correlations to see which que
 # https://cran.r-project.org/web/packages/psychTools/vignettes/factor.pdf
 library(psych)
 ic.poly <- 
-  iclust(r.poly$rho,
+  ~{
+    iclust(r.poly$rho,
          title = "")
-# iclust.diagram(ic.poly, 
-#                main = "",
-#                cex = 0.75)
+  }
+
+cowplot::plot_grid(ic.poly)
+ggsave(here::here(paste0('figures/nine-principles-factor-iclust.png')),
+       height = 6,
+       width = 8)
+
 ```
 
 ### Optimum number of latent factors
@@ -194,11 +189,16 @@ After exploring, we can confirm the optimum number of latent factors using Confi
 ```{r}
 # How can we statistically test if that’s actually the case? This can be done using Confirmatory Factor Analysis (CFA), that bridges factor analysis with Structural Equation Modelling (SEM).
 
+library(lavaan)
+library(performance)
+
+names(output) <- str_remove_all(short_principles, " |&")
+
 # https://easystats.github.io/parameters/articles/efa_cfa.html
 # Partition the data
 partitions <- 
   data_partition(data.matrix(output), 
-                 training_proportion = 0.7)
+                 training_proportion = 0.8)
 
 training <- partitions$training
 test <- partitions$test
@@ -211,25 +211,26 @@ structure_3 <- psych::fa(training, nfactors = 3)  %>%
   efa_to_cfa()
 structure_4 <- psych::fa(training, nfactors = 4)  %>% 
   efa_to_cfa()
+structure_5 <- psych::fa(training, nfactors = 5)  %>% 
+  efa_to_cfa()
 
 # Investigate how a model looks
 # structure_1
 # structure_2
 # structure_3
 
-library(lavaan)
-library(performance)
-
 # Fit and Compare models
 f1 <- lavaan::cfa(structure_1, data = test)
 f2 <- lavaan::cfa(structure_2, data = test)
 f3 <- lavaan::cfa(structure_3, data = test)
 f4 <- lavaan::cfa(structure_4, data = test)
+f5 <- lavaan::cfa(structure_5, data = test)
 
 cfa_out <- 
- compare_performance(f1, f2, f3, f4, rank = TRUE)
+ compare_performance(f1, f2, f3, f4, f5, rank = TRUE)
 # 2 seem best, store top ranked number of factors for later
 n_factors <- parse_number(cfa_out$Model[1])
+n_factors
 ```
 
 The results confirm that `r n_factors` factors are best for our data. Now we compute a latent variable exploratory factor analysis (EFA) using `r n_factors` factors. We can visualise the output in a scatterplot, showing how responses to questions about the Principles cluster together. 
@@ -274,8 +275,9 @@ tibble(mr1 = efa$loadings[,1],
        #  the fraction of the variable’s total 
        # variance explained by the factor 
        communalities = efa$communalities,
-       fac = ifelse(!is.na(efa_model_params$MR1), 1, 2))
-
+       fac = ifelse(!is.na(efa_model_params$MR1), 1, 2)) %>% 
+  mutate(var1 = short_principles)
+  
 ## Generate a plot showing how the items load on each factor
 
 library(ggrepel)
@@ -284,15 +286,19 @@ efa_plot <-
 ggplot(efa_tbl) +
   aes(mr1,
       mr2,
-      label = var,
+      label = var1,
       size = communalities,
       colour = as.factor(fac)) +
   geom_point() +
-  geom_text_repel(size = 6, 
-                  nudge_x = 0.05,
-                  nudge_y = 0.05,
-                  segment.colour = "grey80",
-                  force = 50) +
+  geom_text_repel(size = 4, 
+                 # nudge_x = 0.129,
+                 # nudge_y = 0.129,
+                 min.segment.length = 1,
+                 segment.colour = "grey80",
+                 force = 180,
+                 bg.r = 0.1,
+                 bg.color = "white"
+                 ) +
   theme_minimal(base_size = 14)  +
   labs(x = "Minimum residual 1",
        y = "Minimum residual 2") +
@@ -313,36 +319,18 @@ Factor loading can be classified based on their magnitude.
 ```{r}
 library(patchwork)
 
- wrap_plots( wrap_elements( ~fa.diagram(efa)), efa_plot) + 
+# corrplot_output
+# corrplot_output
+
+wrap_plots( wrap_elements( ~fa.diagram(efa)), 
+            efa_plot) + 
     plot_annotation(tag_levels = 'A') 
+
+ggsave(here::here(paste0('figures/nine-principles-factor-panel.png')),
+       height = 6,
+       width = 13)
   
 ```
 
 
-
-# End ---------------------------------------------------------
-
-```{r eval = FALSE}
-library(DandEFA)
-
-facl <- 
-factload(data.matrix(output),
-         nfac=2,
-         method="pc",
-         cormeth="polycor")
-
-dandelion(facl, 
-          bound = 0.5, 
-          mcex=c(1, 1),
-          # rev(rainbow(100, start = 0, end = 0.2))
-           viridis::cividis(2) 
-          )
-```
-
-```{r eval = FALSE}
-  
- (how_many +  efa_plot) /
- wrap_elements( ~dandelion(facl, bound = 0.5, mcex=c(1,1), rev(rainbow(100, start = 0, end = 0.2))) ) +
-    plot_annotation(tag_levels = 'A') 
-```
 

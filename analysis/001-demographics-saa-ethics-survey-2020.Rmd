@@ -29,8 +29,6 @@ decode_demographics()
 
 # Demographics of respondants {-}
 
-
-
 Are you a current SAA member?	
 
 ```{r}
@@ -196,6 +194,10 @@ p3 <- where_do_you_do_fieldwork$plot
 ```{r fig.height=6, fig.width=10}
 library(patchwork)
 wrap_plots(p3,  p4, ncol = 1)
+
+ggsave(here::here("figures/demographics-work-fieldwork.png"),
+                  height = 10,
+                  width = 10)
 ```
 
 

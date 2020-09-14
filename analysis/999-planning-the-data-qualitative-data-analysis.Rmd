@@ -103,7 +103,7 @@ How many words per free text response?
 ```{r}
 free_text_short_sum <- 
 free_text_short %>% 
-  mutate(word_count = str_count(values)) %>% 
+  mutate(word_count = stringi::stri_count_words(values)) %>% 
   group_by(question) %>% 
   summarise(word_count_sum = sum(word_count, na.rm = TRUE)) %>% 
   mutate(hours = round(word_count_sum / 200 / 60, 1))
@@ -117,12 +117,46 @@ datatable(free_text_short_sum)
 We can read about 200 words per minute. So we have about `r sum(free_text_short_sum$hours)` hours of reading to do. 
 
 ```{r}
+q_fct_order <- 
+free_text_short_sum %>% 
+  arrange(desc(word_count_sum)) %>% 
+  pull(question)
+
+library(ggbeeswarm)
+free_text_short_dist_plot <- 
+free_text_short %>% 
+  mutate(word_count = stringi::stri_count_words(values)) %>% 
+  ggplot() +
+  aes(fct_rev(factor(question, 
+             levels =  q_fct_order)),
+      word_count) +
+  geom_quasirandom(alpha = 0.2) +
+  scale_y_log10() +
+  coord_flip() +
+  theme_bw(base_size = 12)  + 
+  theme(axis.text.y = element_blank()) +
+  ylab("Word count per response") +
+  xlab("")
+
+free_text_short_tot_plot <- 
 ggplot(free_text_short_sum) +
   aes(word_count_sum, 
-      reorder(str_wrap(question, 20), word_count_sum)) +
+      reorder(str_wrap(str_to_sentence(question), 30), 
+              word_count_sum)) +
   geom_col() +
   scale_x_continuous(labels = scales::comma) +
-  theme_bw(base_size = 12)
+  theme_bw(base_size = 12) +
+  ylab("") +
+  xlab("Total word count")
+
+library(cowplot)
+plot_grid(free_text_short_tot_plot,
+          free_text_short_dist_plot 
+          )
+
+ggsave(here::here("figures/all-free-text-responses-word-count.png"),
+       width = 12,
+       height = 7)
 ```
 
 
