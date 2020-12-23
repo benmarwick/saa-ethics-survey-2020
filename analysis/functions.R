@@ -3,7 +3,7 @@
 load_survey_data <- function(){
   library(tidyverse)
 survey_data <- 
-  readr::read_csv("data/raw-data/Data Pull 06-10-20 CSV.csv") %>% 
+  readr::read_csv(here::here("data/raw-data/Data Pull 06-10-20 CSV.csv")) %>% 
   select(-starts_with("X"))
 
 # names from the first data pull only
