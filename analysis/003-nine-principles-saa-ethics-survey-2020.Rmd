@@ -62,13 +62,34 @@ library(grid)
   
   l_out <- likert(output)
   
-plot(l_out, include.histogram = FALSE) 
+plot(l_out, include.histogram = F) 
 
 ggsave(here::here("figures/nine-principles-likert.png"),
        width = 10,
        height = 5)
 
 ```
+
+How many people responded to these questions about the 9 principles? `r nrow(output)` people. Here's a table of how many responses in each category for each question:
+
+```{r}
+output_long <- 
+  output %>% 
+  pivot_longer( cols = everything(),
+                names_to = "principle", 
+                values_to = "response") %>% 
+  group_by(principle, response) %>% 
+  tally() %>% 
+  pivot_wider(names_from = response, 
+              values_from = n)  %>% 
+  select(rev(mylevels)) %>% 
+  janitor::adorn_totals("col")
+
+write.csv(output_long,
+          row.names = FALSE,
+          here::here("data/derived-data/nine-principles-likert-tally.csv"))
+```
+
 
 ---
 
