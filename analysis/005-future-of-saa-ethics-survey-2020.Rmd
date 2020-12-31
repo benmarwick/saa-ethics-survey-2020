@@ -582,6 +582,10 @@ Q: What type of ethical document(s) do you feel would best serve the SAA members
 ```{r}
 ### Responses to the question "What type of ethical document(s) do you feel would best serve the SAA membership?" 
 
+# how many responses?
+ survey_data[,42] %>% 
+  drop_na()
+
 # What type of ethical document(s) do you feel would best serve the SAA membership? 
 what_type_of_doc <- 
   plot_multiple_option_question(survey_questions_vec[multiple_response[3]])
@@ -725,6 +729,7 @@ ggsave(here::here(paste0('figures/type-of-doc-years-worked.png')),
 Q: Are there additional ethical issues that should be addressed by the Principles? 
 
 ```{r}
+
 plot_single_option_question(survey_questions_vec[single_response[3]], 
                                  base_size = 12,
                                   wrap = 60,
@@ -818,6 +823,9 @@ survey_data %>%
   drop_na()  %>% 
   pull() %>% 
   tolower() 
+
+# how many responses?
+length(additional)
 
 library(quanteda)
 additional_cor <- corpus(additional)

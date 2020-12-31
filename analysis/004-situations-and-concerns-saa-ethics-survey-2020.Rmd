@@ -58,7 +58,7 @@ output <-
 names(output) <- 
   c("Ethical situations today", 
     "Concerns in country", 
-    "Conerns in sector")
+    "Concerns in sector")
 
 library(likert)
 l_out <- likert(output)
@@ -71,6 +71,25 @@ ggsave(here::here("figures/concerns-situations-likert.png"),
        height = 5)
 ```
 
+How many people responded to these questions about the situations and concerns? `r nrow(output)` people. Here's a table of how many responses in each category for each question:
+
+```{r}
+output_long <- 
+  output %>% 
+  pivot_longer( cols = everything(),
+                names_to = "question", 
+                values_to = "response") %>% 
+  group_by(question, response) %>% 
+  tally() %>% 
+  pivot_wider(names_from = response, 
+              values_from = n)  %>% 
+  select(rev(mylevels)) %>% 
+  janitor::adorn_totals("col")
+
+write.csv(output_long,
+          row.names = FALSE,
+          here::here("data/derived-data/situations-and-concerns-likert-tally.csv"))
+```
 
 Can we get a summary of average disagreement for each demographic for each Q?
 
@@ -200,6 +219,7 @@ ggsave(
 }
 ```
 
+How many free text responses for each sitation and concern question?
 
 Network plots for the high frequency words in the free text responses
 
@@ -209,6 +229,31 @@ situations %>%
   dplyr::select(contains("Please")) %>% 
    rename_all(~names(output) ) %>% 
   mutate(across(everything(), stringi::stri_trans_tolower))
+
+# count non-NA values for each principle 
+p_count_situations_elaboration_responses <- 
+  map_df(situations_elaboration, 
+      ~length(.x[!is.na(.x)]))  %>% 
+    pivot_longer(
+      cols = everything(),
+      names_to = 'question',
+      values_to = 'responses')
+  
+library(knitr)
+library(kableExtra)
+library(formattable)
+
+p_count_situations_elaboration_responses$responses <- 
+  #color_bar("lightblue")(p_count_free_text_responses$responses)
+color_tile("transparent", "red")(p_count_situations_elaboration_responses$responses)
+
+kbl(p_count_situations_elaboration_responses, escape = F) %>% 
+  column_spec(2, width = "1cm") 
+```
+
+
+
+```{r}
 
 # Word cloud
 library(quanteda)
