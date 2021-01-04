@@ -1,0 +1,3 @@
+The data files here have had all variables containing personal data removed. Personal data is information relating to an identified or identifiable person, for example someone who can be identified, directly or indirectly, in particular by reference to a data value.
+
+The original data containing all personal data is securely archived online at https://osf.io/e7pbn/. Contact Ben Marwick (bmarwick@uw.edu) for access.

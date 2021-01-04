@@ -12,7 +12,7 @@ Please cite this compendium as:
 
 ## Contents
 
-This repository  contains:
+This repository contains:
 
   - [:file\_folder: report](/report): A PDF file of the final report. This was originally written in Google Documents and exported to PDF.
   - [:file\_folder: analysis](/analysis): R Markdown and R script files that include
