@@ -3,7 +3,8 @@
 load_survey_data <- function(){
   library(tidyverse)
 survey_data <- 
-  readr::read_csv(here::here("data/raw-data/Data Pull 06-10-20 CSV.csv")) %>% 
+  readr::read_csv(here::here("data/private-data/Data Pull 06-10-20 CSV.csv")) %>% 
+  # readr::read_csv(here::here("data/raw-data/Data Pull 06-10-20 CSV.csv")) %>% 
   select(-starts_with("X"))
 
 # names from the first data pull only
@@ -30,15 +31,16 @@ likert_general <<- str_which(survey_questions_vec, "^The SAA Principles of Ethic
 # decode demographic variables
 decode_demographics <- function(){
   library(tidyverse)
-  key_sheets <- readxl::excel_sheets(here::here("data/raw-data/SAA Ethics TF 2 Survey - 09-01-20 - Key.xlsx"))
+  key_sheets <- 
+    readxl::excel_sheets(here::here("data/private-data/SAA Ethics TF 2 Survey - 09-01-20 - Key.xlsx"))
   key_tbl <- map(key_sheets[-1], 
-                 ~readxl::read_excel(here::here("data/raw-data/SAA Ethics TF 2 Survey - 09-01-20 - Key.xlsx"),
+                 ~readxl::read_excel(here::here("data/private-data/SAA Ethics TF 2 Survey - 09-01-20 - Key.xlsx"),
                                     sheet = .x) %>% 
                    rename_all(tolower)) 
   # but he made a mistake and updated some of the variables...
-  key_sheets_1 <- readxl::excel_sheets(here::here("data/raw-data/SAA Ethics TF 2 Survey - 09-02-20 - Key Correction Data.xlsx"))
+  key_sheets_1 <- readxl::excel_sheets(here::here("data/private-data/SAA Ethics TF 2 Survey - 09-02-20 - Key Correction Data.xlsx"))
   key_tbl_1 <- map(key_sheets_1[-1], 
-                 ~readxl::read_excel(here::here("data/raw-data/SAA Ethics TF 2 Survey - 09-02-20 - Key Correction Data.xlsx"),
+                 ~readxl::read_excel(here::here("data/private-data/SAA Ethics TF 2 Survey - 09-02-20 - Key Correction Data.xlsx"),
                                      sheet = .x) %>% 
                    rename_all(tolower)) 
   
@@ -279,7 +281,10 @@ plot_single_option_question_by_workplace <- function(x,
 plot_multiple_option_question <- function(x, wrap = 30, 
                                           truncn = 50,
                                           title_wrap = 60,
-                                          base_size = 10){
+                                          base_size = 10,
+                                          text.scale = 1,
+                                          show.numbers = FALSE, 
+                                          mb.ratio = c(0.5, 0.5)){
   
   x_tbl <- 
     survey_data %>% 
@@ -367,7 +372,11 @@ plot_multiple_option_question <- function(x, wrap = 30,
     upset(sets.bar.color = "gray20",
           main.bar.color = "gray20",
           order.by = "freq",
-          nsets = length(options)) 
+          nsets = length(options),
+          text.scale = text.scale,
+          show.numbers = show.numbers,
+          mb.ratio = mb.ratio
+          ) 
   
   upset_plot_caption <-  
     paste0(str_trunc(x, truncn), 

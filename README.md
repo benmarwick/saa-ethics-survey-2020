@@ -4,6 +4,8 @@ This repository contains the data and code for our report:
 
 >  Marwick, B, E. Potter, R. Hampton, K. Pruski, L. Wang (2020) *Report on an analysis of responses to the 2020 Survey for the Revision of the Society of American Archaeology’s Principles of Archaeological Ethics*. Online at <http://doi.org/10.17605/OSF.IO/643C8>
 
+Note that the publicly available data does not include any personally identifiable information. The full dataset with personally identifiable information is available on a private repository at https://osf.io/e7pbn/ Contact bmarwick@uw.edu for access. 
+
 ### How to cite
 
 Please cite this compendium as:

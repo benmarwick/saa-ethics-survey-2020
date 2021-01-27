@@ -44,7 +44,7 @@ survey_data %<>%
 
 library(janitor)
 survey_data %>% 
-  tabyl(the_variable) %>% View
+  tabyl(the_variable)
 
 # how frequently?  
 p1a <- plot_single_option_question(the_variable,
@@ -94,7 +94,9 @@ How have you used the SAA Principles of Ethics?
 ```{r how-have-used}
 # How have you used the SAA Principles of Ethics?
 how_have_you_used <- 
-  plot_multiple_option_question(survey_questions_vec[multiple_response[1]])
+  plot_multiple_option_question(survey_questions_vec[multiple_response[1]],
+                                text.scale = 2,
+                                mb.ratio = c(0.475, 0.525))
 
 # see n and %
 how_have_you_used$tally %>% 
@@ -109,10 +111,10 @@ ggsave(here::here("figures/how-have-you-used-bar-plot.png"),
 ```{r how-have-used-plot, fig.cap=how_have_you_used$upset_plot_caption, fig.height=3}
 png(here::here("figures/how-have-you-used-upset-plot.png"),
     width = 10,
-    height = 5,
+    height = 6,
     units = "in",
     res = 300)
-how_have_you_used$upset_plot
+how_have_you_used$upset_plot 
 dev.off()
 
 ```
@@ -137,9 +139,10 @@ how_used_tags %>%
   aes(reorder(tag, n), 
       n) +
   geom_col() +
-  xlab("How used") +
+  xlab("") +
+  ylab("Number of respondents") +
   coord_flip() +
-  theme_bw(base_size = 12)
+  theme_bw(base_size = 14)
 
 ggsave(here::here("figures/how-have-you-used-tags.png"),
        width = 5,
@@ -151,7 +154,8 @@ Have you consulted any other codes of ethics?
 ```{r other-orgs}
 # Have you consulted any other codes of ethics?
 other_codes <- 
-  plot_single_option_question(survey_questions_vec[8])
+  plot_single_option_question(survey_questions_vec[8]) +
+  theme_minimal(base_size = 12)
 
 other_orgs <- 
   read_csv(here::here("data/derived-data/other-orgs-mentioned.txt")) %>% 
@@ -283,36 +287,48 @@ other_orgs_tbl %>%
   group_by(org) %>% 
   summarise(n = sum(count)) %>% 
   arrange(desc(n)) %>% 
-  filter( n >= 2)
+  filter( n >= 5)
 ```
 
 Approximately `r nrow(other_orgs)` different organisations were named in responses to this question. Most of these were named less than five times. These include state and regional archaeological societies and associations (e.g. Texas, California, Arizona, Colorado, etc.), other disciplines (e.g. American Association of Geographers, American Geophysical Union, Society of Vertebrate Paleontology), and specialized documents such as FAIR and CARE. Reasons give for why these documents were consulted included for teaching and study (e.g graduate and undergraduate coursework students and instructors), and to resolve a dispute or investigate a grievance (especially related to the RPA).
 
 ---
 
-```{r other-orgs-plot, fig.cap="Other organisations mentioned more than ten times in responses to the question 'Have you consulted any other codes of ethics?'", fig.height=3}
+```{r other-orgs-plot, fig.cap="Other organisations mentioned more than five times in responses to the question 'Have you consulted any other codes of ethics?'", fig.height=3}
+
+other_orgs_tbl_tally <- 
+other_orgs_tbl_tally %>% 
+  mutate(org = str_to_title(org)) %>% 
+  mutate(org = str_replace(org, " Of ", " of ")) %>% 
+  mutate(org = str_replace(org, " For ", " for ")) %>% 
+  mutate(org = str_replace(org, " And ", " and ")) %>% 
+  mutate(org = str_replace(org, " The ", " the ")) %>% 
+  mutate(org = ifelse(str_detect(org, " "), org, str_to_upper(org)))
+
 other_codes_tally_plot <- 
 ggplot(other_orgs_tbl_tally,
        aes(reorder(org, n), 
            n)) +
   geom_col() +
   coord_flip() +
-  theme_minimal(base_size = 12) +
+  theme_minimal(base_size = 16) +
   xlab("") +
-  ylab("Number of times mentioned") +
-  ggtitle(str_c("Other organisations mentioned more than\ntwice in responses to the question\n'Have you consulted any other codes of ethics?'\n(", nrow(other_orgs), " organisations in ", length(other_codes_chr), " responses)"))
+  ylab("Number of times mentioned") # +
+  # ggtitle(str_c("Other organisations mentioned more than\ntwice in responses to the question\n'Have you consulted any other codes of ethics?'\n(", nrow(other_orgs), " organisations in ", length(other_codes_chr), " responses)"))
 
 library(cowplot)
 ggdraw() +
   draw_plot(other_codes_tally_plot) +
   draw_plot(other_codes +
-              ggtitle("Have you consulted any other codes of ethics?"), 
-            x = 0.5, y = 0.2, 
-            width = .4, height = .4)
+              ggtitle("Have you consulted any\nother codes of ethics?") +
+                theme_bw(base_size = 12), 
+            x = 0.6, y = 0.2, 
+            width = .25, height = .3) 
 
+  
 ggsave(here::here("figures/how-have-you-used-consulted-other-codes.png"),
-       width = 10,
-       height = 10)
+       width = 8,
+       height = 6)
 
 ```
 
