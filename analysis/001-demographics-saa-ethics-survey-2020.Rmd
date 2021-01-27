@@ -449,6 +449,8 @@ rownames(mca1_vars_df) <- ifelse(str_detect(rownames(mca1_vars_df), ": "),
                                  rownames(mca1_vars_df),
                                  paste0(mca1_vars_df$Variable, ": ", rownames(mca1_vars_df)))
 rownames(mca1_vars_df) <- str_remove(rownames(mca1_vars_df), "\\.$")
+rownames(mca1_vars_df) <- 
+  str_replace(rownames(mca1_vars_df), "African-American", "African American" )
                                  
 
 # plot of variable categories
