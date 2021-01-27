@@ -143,16 +143,25 @@ We computed a hierarchical cluster analysis on the correlations to see which que
 # hierarchical cluster analysis 
 # https://cran.r-project.org/web/packages/psychTools/vignettes/factor.pdf
 library(psych)
+
 ic.poly <- 
   ~{
-    iclust(r.poly$rho,
-         title = "")
+    iclust.diagram.custom( 
+     iclust(r.poly$rho,
+         title = "", 
+         plot = FALSE),
+     cex = 1,
+     cex.in.circle = 0.65,
+     cex.variables = 1,
+     cex.arrow.digits = 0.65,
+     main = "")
   }
 
 cowplot::plot_grid(ic.poly)
+
 ggsave(here::here(paste0('figures/nine-principles-factor-iclust.png')),
-       height = 6,
-       width = 8)
+       height = 5,
+       width = 7)
 
 ```
 
@@ -290,7 +299,7 @@ ggplot(efa_tbl) +
       size = communalities,
       colour = as.factor(fac)) +
   geom_point() +
-  geom_text_repel(size = 4, 
+  geom_text_repel(size = 6, 
                  # nudge_x = 0.129,
                  # nudge_y = 0.129,
                  min.segment.length = 1,
@@ -299,7 +308,7 @@ ggplot(efa_tbl) +
                  bg.r = 0.1,
                  bg.color = "white"
                  ) +
-  theme_minimal(base_size = 14)  +
+  theme_minimal(base_size = 18)  +
   labs(x = "Minimum residual 1",
        y = "Minimum residual 2") +
   theme(legend.position = c(0.8, 0.9)) +
@@ -327,6 +336,21 @@ wrap_plots( wrap_elements( ~fa.diagram(efa)),
     plot_annotation(tag_levels = 'A') 
 
 ggsave(here::here(paste0('figures/nine-principles-factor-panel.png')),
+       height = 6,
+       width = 13)
+  
+```
+
+```{r}
+# for tSAAR
+library(cowplot)
+
+plot_grid(ic.poly, 
+          efa_plot,
+          labels="auto") 
+    
+
+ggsave(here::here(paste0('figures/nine-principles-factor-panel-tsaar.png')),
        height = 6,
        width = 13)
   

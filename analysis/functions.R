@@ -487,3 +487,158 @@ load_tagged_text <- function(){
     mutate(doc = str_remove_all(doc, "_|\\.txt|,|\\(1\\)"))
 }
 
+
+iclust.diagram.custom <- 
+function (ic, 
+          labels = NULL, 
+          short = FALSE, 
+          digits = 2,
+          cex = NULL,
+          cex.variables = NULL,
+          cex.in.circle = NULL,
+          cex.arrow.digits = NULL,
+          min.size = NULL, 
+          e.size = 1, 
+          colors = c("black", "blue"), 
+          main = "", 
+          cluster.names = NULL, 
+          marg = c(0.5,  0.5, 1.5, 0.5)
+          ) 
+{
+  old.par <- par(mar = marg)
+  on.exit(par(old.par))
+  clusters <- ic$results
+  num <- nrow(clusters)
+  num.var <- num + 1
+  if (is.null(cex)) 
+    cex <- min(16/num.var, 1)
+  if (is.null(labels)) {
+    var.labels <- rownames(ic$loadings)
+  }
+  else {
+    var.labels = labels
+  }
+  if (short) {
+    var.labels <- paste("V", 1:num.var, sep = "")
+  }
+  if (is.null(var.labels)) {
+    var.labels <- paste("V", 1:num.var, sep = "")
+  }
+  fixed <- psych:::fix.names(ic, var.labels)
+  clusters <- fixed$ic$results
+  max.len <- max(nchar((var.labels)))
+  if (is.null(cluster.names)) 
+    cluster.names <- rownames(clusters)
+  names(cluster.names) <- rownames(clusters)
+  length.labels <- max(max.len * 0.15 * cex, 0.25 * cex)
+  nc <- length(ic$size)
+  nvar <- sum(ic$size)
+  last <- dim(clusters)[1]
+  max.size <- max(ic$size)
+  limx <- c(-length.labels, nvar + 2)
+  limy <- c(0, nvar + 1)
+  if (nvar < 12) 
+    e.size <- e.size * 0.7
+  if (is.null(min.size)) 
+    min.size <- 0.1 * nvar
+  plot(0, type = "n", xlim = limx, ylim = limy, frame.plot = FALSE, 
+       axes = FALSE, ylab = "", xlab = "", main = main)
+  new.max.len <- max(strwidth(var.labels, units = "user"))
+  if (new.max.len > max.len) {
+    limx <- c(-new.max.len/2, nvar + 2)
+    plot(0, type = "n", xlim = limx, ylim = limy, frame.plot = FALSE, 
+         axes = FALSE, ylab = "", xlab = "", main = main)
+  }
+  top <- num.var
+  done <- 0
+  rect.list <- list()
+  arrow.list <- list()
+  cluster.list <- list()
+  if (nc == 1) {
+    head <- num
+    size <- num.var
+    y.loc <- clusters[head, "size2"]
+    v.loc <- psych:::down(clusters, head, size, y.loc, old.head = NULL, 
+                  old.loc = NULL, min.size = min.size, e.size = e.size, 
+                  digits = digits, cex = cex, limx = limx, limy = limy, 
+                  colors = colors, cluster.names = cluster.names, rect.list = rect.list, 
+                  arrow.list = arrow.list, cluster.list = cluster.list)
+    rect.list <- c(rect.list$rect.list, v.loc$rect.list)
+    cluster.list <- v.loc$cluster.list
+    arrow.list <- v.loc$arrow.list
+  }
+  else {
+    for (clust in 1:nc) {
+      size <- sum(abs(ic$clusters[, clust]))
+      if (substr(colnames(ic$clusters)[clust], 1, 1) == 
+          "C") {
+        head <- which(rownames(clusters) == colnames(ic$clusters)[clust])
+        cluster <- clusters[head, ]
+        y.loc <- clusters[head, "size2"] + done
+        v.loc <- down(clusters, head, size, y.loc, old.head = NULL, 
+                      old.loc = NULL, min.size = min.size, e.size = e.size, 
+                      digits = digits, cex = cex.arrow.digits, limx = limx, limy = limy, 
+                      colors = colors, cluster.names = cluster.names, 
+                      rect.list = rect.list, arrow.list = arrow.list, 
+                      cluster.list = cluster.list)
+        rect.list <- v.loc$rect.list
+        cluster.list <- v.loc$cluster.list
+        arrow.list <- v.loc$arrow.list
+      }
+      else {
+        v.name <- names(which(ic$clusters[, clust] == 
+                                1))
+        v.loc <- dia.rect(0, done + 0.5, v.name, xlim = limx, 
+                          ylim = limy, cex = cex.arrow.digits, draw = FALSE)
+        rect.list <- c(rect.list, v.loc, v.name)
+      }
+      done <- done + size
+    }
+  }
+  rect.mat <- matrix(unlist(rect.list), ncol = 12, byrow = TRUE)
+  rect.df <- as.data.frame(rect.mat, stringsAsFactors = FALSE)
+  colnames(rect.df) <- c("left", "y", "right", "right.y", "topx", 
+                         "topy", "xbott", "botty", "centerx", "centery", "radius", 
+                         "lab")
+  text(as.numeric(rect.df$centerx), 
+       as.numeric(rect.df$centery), 
+       rect.df$lab, 
+       cex = cex.variables)
+ # don't draw rectangles around variable names
+ # rect(as.numeric(rect.df$left), as.numeric(rect.df$botty), 
+ #      as.numeric(rect.df$right), as.numeric(rect.df$topy))
+  cluster.mat <- matrix(unlist(cluster.list), ncol = 15, byrow = TRUE)
+  cluster.df <- data.frame(cluster.mat, stringsAsFactors = FALSE)
+  cluster.df[c(1:12, 14:15)] <- nchar2numeric(cluster.df[c(1:12, 
+                                                           14:15)])
+  colnames(cluster.df) <- c("left", "yl", "right", "yr", "topx", 
+                            "topy", "xbott", "botty", "centerx", "centery", "link", 
+                            "radius", "lab", "alpha", "beta")
+  rownames(cluster.df) <- cluster.df$lab
+  psych:::dia.cluster1(cluster.df, cex = cex.in.circle, e.size = e.size, digits = digits)
+  arrow.mat <- matrix(unlist(arrow.list), ncol = 21, byrow = TRUE)
+  arrow.df <- data.frame(arrow.mat, stringsAsFactors = FALSE)
+  arrow.df[c(1:19, 21)] <- nchar2numeric(arrow.df[c(1:19, 21)])
+  tv <- arrow.df
+  text(tv[, 1], tv[, 2], tv[, 3], cex = cex.arrow.digits)
+  arrows(x0 = tv[, 6], 
+         y0 = tv[, 7], 
+         x1 = tv[, 8], 
+         y1 = tv[, 9], 
+         length = tv[1, 10], 
+         angle = tv[1, 11], 
+         code = 1, 
+         col = tv[, 20], 
+         lty = tv[, 21])
+  # these are the arrows to the variable labels
+  arrows(x0 = tv[, 13], 
+         y0 = tv[, 14], 
+         x1 = tv[, 15], 
+         y1 = tv[, 16], 
+         length = tv[1, 17], 
+         angle = tv[1, 18], 
+         code = 2, 
+         col = tv[, 20], 
+         lty = tv[, 21])
+}
+
