@@ -58,15 +58,16 @@ library(grid)
       "Safe Educational and Workplace"
       )
   
-  names(output) <- paste0(short_names, ": ", short_principles)
+  names(output) <- paste0(short_names, ":", short_principles)
   
   l_out <- likert(output)
   
-plot(l_out, include.histogram = F) 
+plot(l_out, include.histogram = F)  +
+  theme_minimal(base_size = 15)
 
 ggsave(here::here("figures/nine-principles-likert.png"),
        width = 10,
-       height = 5)
+       height = 4.5)
 
 ```
 
@@ -221,7 +222,12 @@ names(demo_cols) <-
 p_cols <- names(survey_data_likert_demo)[8:ncol(survey_data_likert_demo)]
 
 mean_diss_out <- vector("list", length = length(p_cols))
-for(i in 1:length(p_cols)){
+
+# do all principles
+# for(i in 1:length(p_cols)){
+
+# do only principle n
+for(i in 9){
 
 demo_means <- 
 map(demo_cols,
@@ -263,7 +269,7 @@ demo_values %>%
   unnest(data) %>% 
   right_join(demo_means) %>% 
   mutate(demo_var_test = paste0(demo_var, 
-                                " (H(", parameter, ") = ", 
+                                "\n (H(", parameter, ") = ", 
                                 round(statistic, 2),
                                 ", p = ", round(p.value, 3) )) 
 
@@ -296,7 +302,7 @@ ggplot(xy) +
                      name = "Mean disagreement") +
   xlab("") +
   coord_flip() +
-  theme_bw()
+  theme_bw(base_size = 16)
 
 mean_diss_out[[i]] <- shift_legend3(mean_dis_plot)
 
