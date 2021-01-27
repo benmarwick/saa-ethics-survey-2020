@@ -377,6 +377,25 @@ plot_multiple_option_question <- function(x, wrap = 30,
           show.numbers = show.numbers,
           mb.ratio = mb.ratio
           ) 
+
+  upset_tbl2 <- 
+    upset_tbl
+  
+names(upset_tbl2) <- 
+  str_trunc(names(upset_tbl2), 45)
+
+
+  upset_plot2 <- 
+    upset_tbl2 %>% 
+    as.data.frame() %>% 
+    upset(sets.bar.color = "gray20",
+          main.bar.color = "gray20",
+          order.by = "freq",
+          nsets = length(options),
+          text.scale = text.scale,
+          show.numbers = show.numbers,
+          mb.ratio = mb.ratio
+    ) 
   
   upset_plot_caption <-  
     paste0(str_trunc(x, truncn), 
@@ -391,6 +410,7 @@ plot_multiple_option_question <- function(x, wrap = 30,
               tally = x_tbl_tally,
               upset = upset_tbl,
               upset_plot = upset_plot,
+              upset_plot2 = upset_plot2,
               upset_plot_caption = upset_plot_caption))
 }
 

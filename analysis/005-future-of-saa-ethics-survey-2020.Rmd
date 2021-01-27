@@ -30,7 +30,6 @@ decode_demographics()
 
 Q: What do you see as being the primary ethical concerns in the field today?
 
-
 ```{r}
 primary_concerns_demo <- 
 survey_data %>% 
@@ -200,23 +199,24 @@ gamma_terms %>%
   top_n(20, gamma) %>%
   ggplot(aes(topic, 
              gamma, 
-             label = str_wrap(terms, 60), 
+             label = str_wrap(terms, 50), 
              fill = topic)) +
   geom_col(show.legend = FALSE) +
   geom_text(hjust = 0, 
             vjust = 0.5,
             lineheight = .75,
             nudge_y = 0.0005, 
-            size = 2.5) +
+            size = 3.5) +
   scale_fill_viridis_d(guide = "legend") +
   coord_flip() +
   scale_y_continuous(expand = c(0,0),
                      limits = c(0, 0.09),
                      labels = scales::percent_format()) +
-  labs(x = NULL, y = expression(gamma),
-       title = "Top 20 topics by prevalence in the question\n'What do you see as being the primary ethical concerns in the field today?'",
-       subtitle = "With the top words that contribute to each topic") +
-  theme_bw()
+  labs(x = NULL, 
+       y = expression(gamma),
+       title = "",
+       subtitle = "") +
+  theme_bw(base_size = 16)
 
 # https://francescocaberlin.blog/2019/07/01/messing-around-with-stm-part-iiib-model-analysis/
 ExSem <-
@@ -245,19 +245,21 @@ plotexcoer <-
   geom_text_repel(aes(label = k)) +
   labs(x = "Semantic coherence",
        y = "Exclusivity",
-       title = "Comparing topic exclusivity and topic semantic coherence") +
+       title = "") +
+  theme_bw(base_size = 16) +
   scale_colour_viridis_c(guide = "legend") +
-  theme_bw()
+  theme(legend.position = c(0.1, 0.3)) 
 
 library(cowplot)
 plot_grid(
   tm, 
   plotexcoer,
-  align = "h"
+  align = "h",
+  rel_widths = c(1.1, 0.8)
   )
 
 ggsave(here::here('figures/primary-ethical-concerns-topic-model.png'),
-       height = 7,
+       height = 8,
        width = 15)
 ```
 
@@ -485,9 +487,9 @@ purpose_of_ethics_doc_wide %>%
       fill = value) +
   geom_col() +
   coord_flip() +
-  theme_bw() +
+  theme_bw(base_size = 16) +
   xlab("") +
-  ylab("Sum of ranks (shorter bar indicates higher rank)") +
+  ylab("Sum of ranks (shorter bar\nindicates higher rank)") +
   scale_fill_viridis_d()  +
   guides(fill=FALSE)
 
@@ -500,7 +502,7 @@ purpose_of_ethics_doc_wide %>%
       fill = value) +
    geom_bar(position = "fill", 
             stat = "identity") +
-  theme_bw() +
+  theme_bw(base_size = 16) +
   xlab("Rank") +
   ylab("Proportion") +
   scale_fill_viridis_d() +
@@ -549,8 +551,14 @@ purpose_of_ethics_doc_wide_demo_wide %>%
   summarise(mean_rank = mean(rank),
             n = n()) 
 
-purpose_of_ethics_doc_wide_demo_wide_means_plots <- 
+# subset for tSAAR plot
+purpose_of_ethics_doc_wide_demo_wide_means_subset <- 
 purpose_of_ethics_doc_wide_demo_wide_means %>% 
+  filter(var1  %in% c("Age", "Gender", "LGBTQIA+", "Work setting"))
+  
+
+purpose_of_ethics_doc_wide_demo_wide_means_plots <- 
+purpose_of_ethics_doc_wide_demo_wide_means_subset %>% 
   ungroup %>% 
   nest_by(var1) %>% 
   mutate(plot_out = list(ggplot(data = data) +
@@ -565,7 +573,7 @@ purpose_of_ethics_doc_wide_demo_wide_means %>%
   ylab("") +
   scale_x_discrete(labels = function(x) str_wrap(x, width = 10)) +
   scale_color_viridis_d(name = var1) +
-  theme(axis.text.x = element_text(size = 6)) +
+  theme(axis.text.x = element_text(size = 8.5)) +
   scale_y_reverse() ))
 
 library(cowplot)
@@ -573,8 +581,8 @@ plot_grid(plotlist = purpose_of_ethics_doc_wide_demo_wide_means_plots$plot_out,
           align = "hv")
 
 ggsave(here::here(paste0('figures/purpose-of-doc-demographics.png')),
-       height = 14,
-       width = 19)
+       height = 8.5,
+       width = 10)
 
 ```
 
@@ -586,9 +594,16 @@ Q: What type of ethical document(s) do you feel would best serve the SAA members
  survey_data[,42] %>% 
   drop_na()
 
+# tidy up responses
+# survey_data %>% 
+#  select( survey_questions_vec[multiple_response[3]]) %>% 
+#  mutate(x = str_trunc(!!rlang::sym(survey_questions_vec[multiple_response[3]]), 
+#                       width = 20)) %>% View
+
 # What type of ethical document(s) do you feel would best serve the SAA membership? 
 what_type_of_doc <- 
-  plot_multiple_option_question(survey_questions_vec[multiple_response[3]])
+  plot_multiple_option_question(survey_questions_vec[multiple_response[3]],
+                                text.scale = 2)
 ```
 
 ```{r what-type-document-plot, fig.cap=what_type_of_doc$upset_plot_caption, fig.height=3}
@@ -598,7 +613,7 @@ png(here::here("figures/what-type-doc-upset-plot.png"),
     height = 5,
     units = "in",
     res = 300)
-what_type_of_doc$upset_plot
+what_type_of_doc$upset_plot2
 dev.off()
 ```
 
@@ -634,9 +649,15 @@ names(type_of_ethical_doc) <-
     "Geographic origin"
   )
 
-type_of_ethical_doc_demo_plots <- 
+# subset for tSAAR plot
+type_of_ethical_doc_subset <- 
 type_of_ethical_doc %>% 
-  pivot_longer(`RPA member`:`Geographic origin`) %>% 
+  select("Type of document", "Age", "Gender", "LGBTQIA+", "Work setting")
+  
+
+type_of_ethical_doc_demo_plots <- 
+type_of_ethical_doc_subset %>% 
+  pivot_longer(`Age`:`Work setting`) %>% 
   separate_rows(`Type of document`, sep = ",") %>% 
   mutate(`Type of document` = factor(`Type of document`, 
                                      levels = what_type_of_doc$tally$x)) %>% 
@@ -669,9 +690,12 @@ plot_grid(plotlist = type_of_ethical_doc_demo_plots$type_plot,
           align = "hv")
 
 ggsave(here::here(paste0('figures/type-of-doc-demographics.png')),
-       height = 14,
-       width = 19)
+       height = 9,
+       width = 10)
 
+```
+
+```{r}
 type_age_corr <- 
 type_of_ethical_doc %>% 
   pivot_longer(`Work setting`:`Geographic origin`) %>% 
@@ -814,8 +838,6 @@ Additional ethical issues - free text
 
 ```{r}
 
-
-
 # network plot ------------------------
 additional <- 
 survey_data %>% 
@@ -939,9 +961,9 @@ gamma_terms2 %>%
                      limits = c(0, 0.08),
                      labels = scales::percent_format()) +
   labs(x = NULL, y = expression(gamma),
-       title = "Top 20 topics by prevalence in the question\n'Are there additional ethical issues that should be addressed by the Principles?'",
-       subtitle = "With the top words that contribute to each topic") +
-  theme_bw()
+       title = "",
+       subtitle = "") +
+  theme_bw(base_size = 16)
 
 
 # https://francescocaberlin.blog/2019/07/01/messing-around-with-stm-part-iiib-model-analysis/
@@ -972,11 +994,11 @@ plotexcoer <-
                   force = 10) +
   labs(x = "Semantic coherence",
        y = "Exclusivity",
-       title = "Comparing topic exclusivity and topic semantic coherence") +
+       title = "") +
   scale_colour_viridis_c(guide = "legend") +
-  theme_bw() +
+  theme_bw(base_size = 16) +
   theme(
-        legend.position = c(.9, 
+        legend.position = c(.8, 
                             .2)
         )
 

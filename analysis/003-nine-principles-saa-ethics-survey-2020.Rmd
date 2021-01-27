@@ -58,7 +58,7 @@ library(grid)
       "Safe Educational and Workplace"
       )
   
-  names(output) <- paste0(short_names, ":", short_principles)
+  names(output) <- paste0(short_names, ": ", short_principles)
   
   l_out <- likert(output)
   
@@ -67,7 +67,7 @@ plot(l_out, include.histogram = F)  +
 
 ggsave(here::here("figures/nine-principles-likert.png"),
        width = 10,
-       height = 4.5)
+       height = 3.5)
 
 ```
 

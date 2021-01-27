@@ -64,11 +64,11 @@ library(likert)
 l_out <- likert(output)
   
 plot(l_out, include.histogram = FALSE) +
-  theme_bw(base_size =12)
+ theme_minimal(base_size = 15)
 
 ggsave(here::here("figures/concerns-situations-likert.png"),
        width = 10,
-       height = 5)
+       height = 2)
 ```
 
 How many people responded to these questions about the situations and concerns? `r nrow(output)` people. Here's a table of how many responses in each category for each question:
