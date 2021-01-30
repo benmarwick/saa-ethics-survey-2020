@@ -89,6 +89,26 @@ ggsave(here::here("figures/how-frequently-consulted.png"),
        height = 5)
 ```
 
+```{r}
+# table by membership status
+use_by_membership_status <- 
+survey_data %>% 
+  dplyr::select(`Are you a current SAA member?`, 
+                the_variable) %>% 
+  filter(!is.na(`Are you a current SAA member?`),
+         !is.na(!!!syms(the_variable))) %>% 
+  group_by(`Are you a current SAA member?`,
+           !!!syms(the_variable)) %>% 
+  tally %>% 
+  pivot_wider(names_from = `Are you a current SAA member?`,
+              values_from = n)
+
+write_csv(use_by_membership_status,
+          here::here("data/derived-data/use_by_membership_status.csv"))
+  
+```
+
+
 How have you used the SAA Principles of Ethics? 
 
 ```{r how-have-used}
@@ -120,6 +140,15 @@ dev.off()
 ```
 
 Free text analysis of the 'other' field of 'How have you used the SAA Principles of Ethics?' 
+
+
+```{r}
+# how many people gave a text response? # 77
+survey_data %>% 
+  dplyr::select(`How have you used the SAA Principles of Ethics? Please check all that apply. - Other - Text`) %>% 
+  drop_na() %>% 
+  nrow()
+```
 
 ```{r}
 load_tagged_text()

@@ -39,8 +39,8 @@ library(grid)
   
   output <- 
   survey_data %>% 
-  select(!!likert_q) %>% 
-  drop_na() %>% 
+  dplyr::select(!!likert_q) %>% 
+ # drop_na() %>% 
   mutate_all(~factor(., levels=mylevels)) %>% 
   as.data.frame()
   
@@ -71,9 +71,60 @@ ggsave(here::here("figures/nine-principles-likert.png"),
 
 ```
 
+What about the difference between members and non-members?
+
+```{r}
+# SAA members
+output_members <- 
+  survey_data %>% 
+  filter(`Are you a current SAA member?` == "Yes")  %>% 
+  dplyr::select(!!likert_q) %>% 
+  #drop_na() %>% 
+  mutate_all(~factor(., levels=mylevels)) %>% 
+  as.data.frame()
+
+nrow(output_members)
+
+names(output_members) <- paste0(short_names, ": ", short_principles)
+  
+
+  l_out_members <- likert(output_members)
+  
+plot(l_out_members, include.histogram = F)  +
+  theme_minimal(base_size = 15)
+
+ggsave(here::here("figures/nine-principles-likert-members.png"),
+       width = 10,
+       height = 3.5)
+
+# SAA non-members
+output_non_members <- 
+  survey_data %>% 
+  filter(`Are you a current SAA member?` != "Yes")  %>% 
+  dplyr::select(!!likert_q) %>% 
+  #drop_na() %>% 
+  mutate_all(~factor(., levels=mylevels)) %>% 
+  as.data.frame()
+
+nrow(output_non_members)
+
+names(output_non_members) <- paste0(short_names, ": ", short_principles)
+
+  l_out_non_members <- likert(output_non_members)
+  
+plot(l_out_non_members, include.histogram = F)  +
+  theme_minimal(base_size = 15)
+
+ggsave(here::here("figures/nine-principles-likert-non-members.png"),
+       width = 10,
+       height = 3.5)
+```
+
+
 How many people responded to these questions about the 9 principles? `r nrow(output)` people. Here's a table of how many responses in each category for each question:
 
 ```{r}
+library(  janitor)
 output_long <- 
   output %>% 
   pivot_longer( cols = everything(),
@@ -83,12 +134,85 @@ output_long <-
   tally() %>% 
   pivot_wider(names_from = response, 
               values_from = n)  %>% 
-  select(rev(mylevels)) %>% 
-  janitor::adorn_totals("col")
+  dplyr::select(rev(mylevels)) 
 
-write.csv(output_long,
+output_long_tot <-   
+  output_long %>% 
+  adorn_totals("col",,,, -principle)
+
+output_long_percs <-   
+  output_long %>% 
+  adorn_percentages("row") %>%
+  adorn_pct_formatting(digits = 1) %>%
+  adorn_ns() 
+
+output_long_percs_total <- 
+output_long_percs %>% 
+  add_column(Total = output_long_tot$Total)
+
+write.csv(output_long_percs_total,
           row.names = FALSE,
           here::here("data/derived-data/nine-principles-likert-tally.csv"))
+
+# members only
+output_long_saa_member <- 
+  output_members %>% 
+  pivot_longer( cols = everything(),
+                names_to = "principle", 
+                values_to = "response") %>% 
+  group_by(principle, response) %>% 
+  tally() %>% 
+  pivot_wider(names_from = response, 
+              values_from = n)  %>% 
+    dplyr::select(rev(mylevels)) 
+
+output_long_saa_member_tot <-   
+  output_long_saa_member %>% 
+  adorn_totals("col",,,, -principle)
+
+output_long_saa_member_percs <-   
+  output_long_saa_member %>% 
+  adorn_percentages("row") %>%
+  adorn_pct_formatting(digits = 1) %>%
+  adorn_ns() 
+
+output_long_saa_member_percs_total <- 
+output_long_saa_member_percs %>% 
+  add_column(Total = output_long_saa_member_tot$Total)
+
+write.csv(output_long_saa_member_percs_total,
+          row.names = FALSE,
+          here::here("data/derived-data/nine-principles-likert-tally-saa-member.csv"))
+
+# non-members
+output_long_non_saa_member <- 
+  output_non_members %>% 
+  pivot_longer( cols = everything(),
+                names_to = "principle", 
+                values_to = "response") %>% 
+  group_by(principle, response) %>% 
+  tally() %>% 
+  pivot_wider(names_from = response, 
+              values_from = n)  %>% 
+    dplyr::select(rev(mylevels)) 
+
+output_long_non_saa_member_tot <-   
+  output_long_non_saa_member %>% 
+  adorn_totals("col",,,, -principle)
+
+output_long_non_saa_member_percs <-   
+  output_long_non_saa_member %>% 
+  adorn_percentages("row") %>%
+  adorn_pct_formatting(digits = 1) %>%
+  adorn_ns() 
+
+output_long_non_saa_member_percs_total <- 
+output_long_non_saa_member_percs %>% 
+  add_column(Total = output_long_non_saa_member_tot$Total)
+
+write.csv(output_long_non_saa_member_percs_total,
+          row.names = FALSE,
+          here::here("data/derived-data/nine-principles-likert-tally-non-saa-member.csv"))
 ```
 
 
@@ -227,7 +351,7 @@ mean_diss_out <- vector("list", length = length(p_cols))
 # for(i in 1:length(p_cols)){
 
 # do only principle n
-for(i in 9){
+for(i in 1:9){
 
 demo_means <- 
 map(demo_cols,
@@ -271,7 +395,8 @@ demo_values %>%
   mutate(demo_var_test = paste0(demo_var, 
                                 "\n (H(", parameter, ") = ", 
                                 round(statistic, 2),
-                                ", p = ", round(p.value, 3) )) 
+                                ", p = ", round(p.value, 3) )) %>% 
+  mutate(var_n = paste0(var, " (n=", n, ")"))
 
 shift_legend3 <- function(p) {
     pnls <- cowplot::plot_to_gtable(p) %>% gtable::gtable_filter("panel") %>%
@@ -284,10 +409,10 @@ shift_legend3 <- function(p) {
 
 mean_dis_plot <-         
 ggplot(xy) +
-  aes(var, 
+  aes(var_n, 
       mean_disagreement) +
   geom_jitter(data = xy, 
-                   aes(var, 
+                   aes(var_n, 
                        !!as.name(p_cols[i])),
                    alpha = 0.1
                    ) +
@@ -297,7 +422,8 @@ ggplot(xy) +
                    shape = ifelse(p.value < 0.05, 16, 1))) +
   scale_shape_identity() +
   facet_wrap( ~ demo_var_test,
-              scales = "free") +
+              scales = "free",
+              ncol = 2) +
   scale_y_continuous(limits = c(0,5), 
                      name = "Mean disagreement") +
   xlab("") +
@@ -311,9 +437,282 @@ ggsave(
   here::here(paste0("figures/nine-principles-mean-dis-", i, ".png")),
   plot = mean_diss_out[[i]] ,
        width = 15,
-       height = 10)
+       height = 15)
+}
+```
+
+How about the relationship between the Likert scale responses and the free text responses? 
+
+```{r}
+# likert
+survey_data_1542_rows <- 
+survey_data %>% 
+  dplyr::select(!!likert_q) %>% 
+  mutate_all(~factor(., levels=mylevels)) 
+
+names(survey_data_1542_rows) <- paste0("likert_", short_principles)
+
+names(nine_principles_elaboration) <- paste0("text_", short_principles)
+
+likert_and_text <- 
+bind_cols(survey_data_1542_rows,
+          nine_principles_elaboration) %>% 
+  pivot_longer(cols = everything(),
+               names_to = c("response_type", "principle"), 
+               names_sep = "_",
+               values_to = "value") %>% 
+  mutate(word_count = ifelse(response_type == "text", 
+                             str_count(value, pattern = " "), 
+                             NA))
+
+# word count means for each principle
+principle_text_mean_word_count <- 
+likert_and_text %>% 
+  filter(response_type == "text") %>% 
+  group_by(principle) %>% 
+  summarise(mean_word_count = mean(word_count, na.rm = TRUE))
+  
+# relationship between number of responses
+library(ggrepel)
+likert_and_text %>% 
+  dplyr::select(principle, 
+         response_type,
+         value) %>% 
+  group_by(principle,
+           response_type) %>% 
+  drop_na() %>% 
+  tally() %>% 
+  pivot_wider(names_from = response_type,
+              values_from = n)  %>% 
+  left_join(principle_text_mean_word_count) %>% 
+  ggplot() +
+  aes(likert,
+      text,
+      label = principle) +
+  geom_point(aes(size = mean_word_count)) +
+  geom_text_repel(force = 10,
+                  bg.r = 0.1,
+                  bg.color = "white") +
+  labs(x = "Number of people responding to the Likert question",
+       y = "Number of people writing text responses",
+       size = "Mean word count\nof text responses") +
+  theme_minimal()
+
+ggsave(
+  here::here("figures/nine-principles-txt-v-lik-plot.png"),
+       width = 7,
+       height = 5)
+```
+
+What percentage of these individuals responding with full text answered via the Likert scale?  
+
+```{r}
+likert_and_text_and_demo <- 
+bind_cols(survey_data_1542_rows,
+          nine_principles_elaboration, 
+          survey_data %>% dplyr::select(`Are you a current SAA member?`))
+
+full_list <- vector("list", length = length(short_principles))
+full_list_no_text <- vector("list", length = length(short_principles))
+ratio_list <- vector("list", length = length(short_principles))
+full_list_text_saa <- vector("list", length = length(short_principles))
+
+for(i in 1:length(short_principles)){
+  
+the_colnames <- 
+  str_subset(names(likert_and_text_full),
+             short_principles[i])
+             
+lik_n <- 
+  likert_and_text_and_demo %>% 
+  dplyr::select(contains(short_principles[i])) %>% 
+  filter(!is.na(!!sym(the_colnames[1]))) 
+
+text_n <- 
+  likert_and_text_and_demo %>% 
+  dplyr::select(contains(short_principles[i])) %>% 
+  filter(!is.na(!!sym(the_colnames[2])))
+
+text_n_member <- 
+  likert_and_text_and_demo %>% 
+  dplyr::select(contains(short_principles[i]), 
+                `Are you a current SAA member?`) %>% 
+  filter(!is.na(!!sym(the_colnames[2])))
+
+# did any txt people not do likert?
+sum_na <- 
+likert_and_text_and_demo %>% 
+  dplyr::select(all_of(the_colnames)) %>% 
+  filter(!is.na(!!sym(the_colnames[2]))) %>% 
+  summarise(sum_na = sum(is.na(!!sym(the_colnames[1])))) %>% 
+  pull(sum_na)
+
+ratio_list[[i]] <- 
+tibble(lik_n = lik_n %>% nrow, 
+       text_n = text_n %>% nrow,
+       sum_na = sum_na) %>% 
+  mutate(perc_t = round(text_n / lik_n  * 100, 1),
+         perc_l = round((text_n - sum_na) / text_n  * 100, 1)
+         )
+
+full_list[[i]] <- text_n
+
+full_list_no_text[[i]] <- 
+  lik_n %>% 
+  filter(is.na(!!sym(the_colnames[2])))
+
+full_list_text_saa[[i]] <- text_n_member %>% 
+  group_by(!!sym(the_colnames[1]), 
+            `Are you a current SAA member?`) %>% 
+  tally %>% 
+  drop_na() %>% 
+  pivot_wider(names_from = !!sym(the_colnames[1]),
+              values_from = n)
+  
+}
+ 
+bind_rows(ratio_list) %>% 
+  mutate(Principle = short_principles) %>% 
+  relocate(Principle) %>% 
+write.csv(
+          row.names = FALSE,
+          here::here("data/derived-data/nine-principles-likert-text-n-ratio.csv"))
+
+# What percentage of those that provided written feedback fall into the “Disagree” or “Strongly” Disagree categories versus other categories?  
+
+txt_lik <- 
+map(full_list, ~likert(data.frame(.x[,1]))$results) %>% 
+  bind_rows() %>% 
+  mutate(Item = str_remove(Item, "likert_")) %>% 
+  mutate(Item = str_replace_all(Item, "\\.", " "))
+
+txt_lik_l <- likert(summary = txt_lik)
+  
+plot(txt_lik_l, include.histogram = F)  +
+  theme_minimal(base_size = 15)
+
+ggsave(here::here("figures/nine-principles-likert-text-responders.png"),
+       width = 10,
+       height = 3.5)
+
+# And those that did not submit a text reponse?
+
+no_txt_lik <- 
+map(full_list_no_text, ~likert(data.frame(.x[,1]))$results) %>% 
+  bind_rows() %>% 
+  mutate(Item = str_remove(Item, "likert_")) %>% 
+  mutate(Item = str_replace_all(Item, "\\.", " "))
+
+no_txt_lik_l <- likert(summary = no_txt_lik)
+  
+plot(no_txt_lik_l, include.histogram = F)  +
+  theme_minimal(base_size = 15)
+
+ggsave(here::here("figures/nine-principles-likert-no-text-responders.png"),
+       width = 10,
+       height = 3.5)
+
+# how about SAA membership status?
+names(full_list_text_saa) <- short_principles
+
+library(janitor)
+bind_rows(full_list_text_saa, .id = "Principle")  %>%
+  adorn_percentages("row") %>%
+  adorn_pct_formatting(digits = 1) %>%
+  adorn_ns() %>% 
+  dplyr::group_by(Principle) %>%
+  gt::gt()
+# open in web browser, copy-paste into Excel, copy-paste to Google doc
+
+
+
+```
+ 
+
+If people wrote text, how did they respond on the Likert scale? 
+
+Let's get the median disagreement for each Principle for people who didn't submit a text response, and people who did
+
+```{r}
+
+# all respondents
+xx <- 
+likert_and_text %>% 
+  select(principle, 
+         response_type,
+         value) %>% 
+  group_by(principle,
+           response_type) %>% 
+  drop_na() %>% 
+  pivot_wider(names_from = response_type,
+              values_from = value) %>% 
+  mutate(likert_num = map_dbl(likert, ~mean(as.numeric(factor(., levels=mylevels)))))
+
+# responses by principle, likert and text paired,
+# each row is one person's response
+x_list <- vector("list", length = ncol(survey_data_1542_rows))
+for(i in 1:ncol(survey_data_1542_rows)){
+  x_list[[i]] <- tibble(survey_data_1542_rows[,i],
+                        nine_principles_elaboration[,i])
+  
 }
 
+x_list <- map(x_list, ~.x %>% setNames(nm = c("lik", "txt")))
+names(x_list) <- short_principles
+
+x_list_df <- 
+bind_rows(x_list, .id = "principle") %>% 
+  group_nest(principle)
+
+x_list_df1 <- 
+x_list_df %>% 
+  mutate(no_text =  map(data, ~.x %>% filter(is.na(txt))),
+         has_text = map(data, ~.x %>% filter(!is.na(txt)))) 
+
+# likert plot txt v not text
+x_list_df1_no_text <- 
+x_list_df1 %>% 
+  select(principle, no_text) %>% 
+  mutate(lik = map(no_text, ~.x %>% 
+                     mutate(lik = as.character(lik)) %>% 
+                     pull(lik))) %>% 
+  select(-no_text) %>% 
+  unnest(lik) %>% 
+  pivot_wider(names_from = principle,
+              values_from = lik)
+
+x_list_df2 <- 
+x_list_df1 %>% 
+  mutate(no_text_mean_lik = map_dbl(no_text, 
+                                    ~mean(as.numeric(.x$lik), 
+                                          na.rm = TRUE))) %>% 
+    mutate(no_text_sd_lik = map_dbl(no_text, 
+                                    ~sd(as.numeric(.x$lik), 
+                                          na.rm = TRUE)))  %>% 
+  mutate(has_text_mean_lik = map_dbl(has_text, 
+                                    ~mean(as.numeric(.x$lik), 
+                                          na.rm = TRUE))) %>% 
+    mutate(has_text_sd_lik = map_dbl(has_text, 
+                                    ~sd(as.numeric(.x$lik), 
+                                          na.rm = TRUE))) 
+
+
+x_list_df2 %>% 
+  select(principle,
+         has_text_mean_lik,
+         no_text_mean_lik,
+         no_text_sd_lik,
+        has_text_sd_lik ) %>% 
+  pivot_longer(-principle) %>% 
+ggplot() +
+  aes(x = reorder(principle, mean(value)),
+      y = value,
+      colour = name) +
+    geom_pointrange(aes(ymin = no_text_mean_lik - no_text_sd_lik,
+                      ymax = no_text_mean_lik + no_text_sd_lik)) +
+    geom_pointrange(aes(ymin = has_text_mean_lik - has_text_sd_lik,
+                        ymax = has_text_mean_lik + has_text_sd_lik)) +
+  coord_flip()
 
 ```
 
