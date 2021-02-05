@@ -58,18 +58,46 @@ library(grid)
       "Safe Educational and Workplace"
       )
   
-  names(output) <- paste0(short_names, ": ", short_principles)
+    # how many responses for each item?
+  n_output <- map_int(output, ~sum(!is.na(.x)))
   
+  names(output) <- paste0(short_names, ": ", short_principles, "\n(n = ", n_output, ")")
+  
+
   l_out <- likert(output)
   
-plot(l_out, include.histogram = F)  +
-  theme_minimal(base_size = 15)
+all_respondes_l_out <- 
+plot(l_out, 
+     include.histogram = F,
+     wrap = 100)  +
+  theme_minimal(base_size = 12)
 
-ggsave(here::here("figures/nine-principles-likert.png"),
+ggsave(plot = all_respondes_l_out, 
+       here::here("figures/nine-principles-likert.png"),
        width = 10,
        height = 3.5)
 
 ```
+
+Disagreement was highest for Principle 9 (Safe Educational and Workplace Environments), Principle 5 (Intellectual Property, IP), and Principle 2 (Accountability). Quantify!
+
+
+```{r}
+l_out$results %>% 
+  rowwise() %>% 
+  mutate(any_dis = sum(`Strongly Disagree`, Disagree)) %>% 
+  arrange(desc(any_dis))
+
+```
+
+How often is the ethics bowl mentioned?
+
+```{r}
+  survey_data %>% 
+  filter_all(any_vars(str_detect(., 'bowl'))) %>% 
+  write_csv("data/derived-data/mentions-of-bowl.csv")
+```
+
 
 What about the difference between members and non-members?
 
@@ -87,13 +115,14 @@ nrow(output_members)
 
 names(output_members) <- paste0(short_names, ": ", short_principles)
   
+l_out_members <- likert(output_members)
 
-  l_out_members <- likert(output_members)
-  
+l_9_saa_members <- 
 plot(l_out_members, include.histogram = F)  +
   theme_minimal(base_size = 15)
 
-ggsave(here::here("figures/nine-principles-likert-members.png"),
+ggsave(plot = l_9_saa_members, 
+       here::here("figures/nine-principles-likert-members.png"),
        width = 10,
        height = 3.5)
 
@@ -112,10 +141,12 @@ names(output_non_members) <- paste0(short_names, ": ", short_principles)
 
   l_out_non_members <- likert(output_non_members)
   
+l_9_saa_non_members <- 
 plot(l_out_non_members, include.histogram = F)  +
   theme_minimal(base_size = 15)
 
-ggsave(here::here("figures/nine-principles-likert-non-members.png"),
+ggsave(plot = l_9_saa_non_members,
+       here::here("figures/nine-principles-likert-non-members.png"),
        width = 10,
        height = 3.5)
 ```
@@ -124,7 +155,7 @@ ggsave(here::here("figures/nine-principles-likert-non-members.png"),
 How many people responded to these questions about the 9 principles? `r nrow(output)` people. Here's a table of how many responses in each category for each question:
 
 ```{r}
-library(  janitor)
+library(janitor)
 output_long <- 
   output %>% 
   pivot_longer( cols = everything(),
@@ -240,17 +271,21 @@ p_count_free_text_responses <-
       cols = everything(),
       names_to = 'principle',
       values_to = 'responses')
+
+
+#   principle                      responses
+#   <chr>                              <int>
+# 1 Stewardship                          311
+# 2 Accountability                       341
+# 3 Commercialization                    281
+# 4 Public Education                     251
+# 5 Intellectual Property                331
+# 6 Public Reporting                     301
+# 7 Records and Preservation             243
+# 8 Training and Resources               229
+# 9 Safe Educational and Workplace       329
   
-library(knitr)
-library(kableExtra)
-library(formattable)
 
-p_count_free_text_responses$responses <- 
-  #color_bar("lightblue")(p_count_free_text_responses$responses)
-color_tile("transparent", "red")(p_count_free_text_responses$responses)
-
-kbl(p_count_free_text_responses, escape = F) %>% 
-  column_spec(2, width = "1cm") 
   
 ```
 
@@ -258,8 +293,6 @@ kbl(p_count_free_text_responses, escape = F) %>%
 We make a network plot of co-occurrences of high-frequency words for each Principles. 
 
 ```{r}
-
-
 # Word cloud
 library(quanteda)
 
@@ -320,20 +353,21 @@ survey_data_likert_demo <-
 bind_cols(survey_data_demographics, 
           survey_data %>% 
           select(!!likert_q, 
-                 rpa = `Are you a member of the RPA?`)) %>% 
-  relocate(rpa, .after = geoorigin) %>% 
+                 rpa = `Are you a member of the RPA?`,
+                 saa = `Are you a current SAA member?`)) %>% 
+  relocate(rpa, saa, .after = geoorigin) %>% 
   drop_na() %>% 
   filter_all(all_vars(!str_detect(., 
                                   "Prefer|other|Other")))  %>% 
   # high number == more disagree
   mutate_at(vars(!!names(survey_data)[likert_q]), 
+            # 5 = strongly diagree
             ~fct_rev(factor(., levels=mylevels)) ) %>% 
   mutate_at(vars(!!names(survey_data)[likert_q]), 
             ~as.numeric(.) ) 
-  
 
 # get col names
-demo_cols <- c(names(survey_data_likert_demo)[1:7])
+demo_cols <- c(names(survey_data_likert_demo)[1:8])
 names(demo_cols) <-  
   c("Ethnicity",
     "LGBTQIA+",
@@ -341,9 +375,10 @@ names(demo_cols) <-
     "Age",
     "Country of residence",
     "Geographic origin",
-    "RPA member"
+    "RPA member",
+    "SAA member"
   )
-p_cols <- names(survey_data_likert_demo)[8:ncol(survey_data_likert_demo)]
+p_cols <- names(survey_data_likert_demo)[9:ncol(survey_data_likert_demo)]
 
 mean_diss_out <- vector("list", length = length(p_cols))
 
@@ -365,6 +400,11 @@ map(demo_cols,
   rename(var = .x)
  ) %>% 
   bind_rows(.id = "demo_var")
+
+# keep only categories with more than 5 people
+demo_means_5 <- 
+  demo_means %>% 
+  filter(n >= 5)
 
 demo_values <- 
 map(demo_cols,
@@ -391,7 +431,7 @@ demo_values %>%
   mutate(e_test = list(broom::tidy(kruskal.test(as.numeric(li) ~ factor(var), data = data)))) %>% 
   unnest(e_test)  %>% 
   unnest(data) %>% 
-  right_join(demo_means) %>% 
+  right_join(demo_means_5) %>% 
   mutate(demo_var_test = paste0(demo_var, 
                                 "\n (H(", parameter, ") = ", 
                                 round(statistic, 2),
@@ -414,8 +454,11 @@ ggplot(xy) +
   geom_jitter(data = xy, 
                    aes(var_n, 
                        !!as.name(p_cols[i])),
-                   alpha = 0.1
+                   alpha = 0.25
                    ) +
+     geom_point(colour = "white",
+               stroke = 2,
+               aes(size = n + 0.1)) +
     geom_point(colour = "red",
                stroke = 2,
                aes(size = n,
@@ -426,12 +469,13 @@ ggplot(xy) +
               ncol = 2) +
   scale_y_continuous(limits = c(0,5), 
                      name = "Mean disagreement") +
-  xlab("") +
+  labs(x = "",
+       size = "Number of\nrespondents") +
   coord_flip() +
-  theme_bw(base_size = 16)
+  theme_bw(base_size = 20) +
+  theme(legend.position=c(.45, .35))
 
-mean_diss_out[[i]] <- shift_legend3(mean_dis_plot)
-
+mean_diss_out[[i]] <- mean_dis_plot # shift_legend3(mean_dis_plot)
 
 ggsave(
   here::here(paste0("figures/nine-principles-mean-dis-", i, ".png")),
@@ -520,7 +564,7 @@ full_list_text_saa <- vector("list", length = length(short_principles))
 for(i in 1:length(short_principles)){
   
 the_colnames <- 
-  str_subset(names(likert_and_text_full),
+  str_subset(names(likert_and_text_and_demo),
              short_principles[i])
              
 lik_n <- 
@@ -580,18 +624,28 @@ write.csv(
 
 # What percentage of those that provided written feedback fall into the “Disagree” or “Strongly” Disagree categories versus other categories?  
 
+
+# Likert responses only for people who submitted text responses
 txt_lik <- 
 map(full_list, ~likert(data.frame(.x[,1]))$results) %>% 
   bind_rows() %>% 
   mutate(Item = str_remove(Item, "likert_")) %>% 
   mutate(Item = str_replace_all(Item, "\\.", " "))
 
-txt_lik_l <- likert(summary = txt_lik)
-  
-plot(txt_lik_l, include.histogram = F)  +
-  theme_minimal(base_size = 15)
+n_txt_lik <-  map_int(full_list, nrow)
 
-ggsave(here::here("figures/nine-principles-likert-text-responders.png"),
+txt_lik$Item <- paste0(short_names, ": ", short_principles, " (n = ", n_txt_lik, ")")
+
+txt_lik_l <- likert(summary = txt_lik)
+
+txt_lik_l_plot <- 
+plot(txt_lik_l, 
+     include.histogram = F,
+     wrap = 100)  +
+  theme_minimal(base_size = 12)
+
+ggsave(plot = txt_lik_l_plot,
+       here::here("figures/nine-principles-likert-text-responders.png"),
        width = 10,
        height = 3.5)
 
@@ -606,7 +660,7 @@ map(full_list_no_text, ~likert(data.frame(.x[,1]))$results) %>%
 no_txt_lik_l <- likert(summary = no_txt_lik)
   
 plot(no_txt_lik_l, include.histogram = F)  +
-  theme_minimal(base_size = 15)
+  theme_minimal(base_size = 14)
 
 ggsave(here::here("figures/nine-principles-likert-no-text-responders.png"),
        width = 10,
@@ -624,8 +678,171 @@ bind_rows(full_list_text_saa, .id = "Principle")  %>%
   gt::gt()
 # open in web browser, copy-paste into Excel, copy-paste to Google doc
 
+```
 
 
+```{r}
+# panel plot for all responses, and only those who submitted text responses
+library(cowplot)
+pcol <- 
+ plot_grid(all_respondes_l_out + 
+             labs(x = "", y = "") +
+             theme(legend.position="none"),
+           txt_lik_l_plot + 
+             theme(legend.position="none"), 
+           ncol = 1,
+           labels = "auto")
+
+# extract the legend from one of the plots
+legend <- get_legend(
+  # create some space to the left of the legend
+  all_respondes_l_out + theme(legend.box.margin = margin(0, 0, 0, 10))
+)
+
+# add the legend to the row we made earlier. Give it one-third of 
+# the width of one plot (via rel_widths).
+plot_grid(pcol, 
+          legend, 
+          align = "h",
+          axis = "tblr",
+          rel_widths = c(2, .5)
+          )
+
+ggsave(here::here("figures/nine-principles-likert-panel-all-and-text.png"),
+       width = 10,
+       height = 4.5)
+
+```
+
+
+
+Sentiment analysis of text responses
+ 
+```{r}
+library(dplyr)
+library(stringr)
+library(tidytext)
+library(meanr)
+
+# get the word senitment data
+afinn <- read_tsv("https://raw.githubusercontent.com/fnielsen/afinn/master/afinn/data/AFINN-en-165.txt", col_names = c("word", "sentiment"))
+afinn <- afinn %>% 
+  mutate(sentiment = ifelse(sentiment > 0, "positive",  "negative"))
+
+
+# do sentiment analysis for each individual text response
+
+se_output <- vector("list", length = length(full_list))
+
+for(i in 1:length( full_list )) {   
+
+ #  tibble(score(pull(full_list[[i]][,2]) ))
+  
+df <-   full_list[[i]] 
+
+tmp <- vector("list", length = nrow(df))
+
+for(j in 1:nrow(df)){
+  tmp[[j]] <- 
+  df %>% 
+    dplyr::slice(j) %>% 
+   unnest_tokens(word, 2) %>% 
+    inner_join(afinn) %>% 
+   group_by(sentiment) %>% 
+  tally() %>% 
+  pivot_wider(names_from = sentiment, 
+              values_from = n,
+              values_fill = 0)  %>% 
+  mutate(negative = ifelse(any(names(.) == 'negative'),
+                           negative * -1,
+                           0)) %>% 
+  mutate(positive = ifelse(any(names(.) == 'positive'),
+                           positive,
+                           0)) %>% 
+    dplyr::select(negative, 
+                  positive)
+
+  # deal with completely empty tibbles  
+tmp[[j]] <- 
+  if( nrow( tmp[[j]]) != 0){
+          tmp[[j]]
+  }else{
+          tibble(negative = 0, 
+                 positive = 0)
+}
+          
+    
+}
+
+se_output[[i]] <- 
+bind_cols(df,
+          bind_rows(tmp))
+
+} # end sentiment detection
+
+names(se_output) <- short_principles
+
+se_output_nam <- 
+map(se_output, 
+    ~setNames(.x, 
+              nm = c("lik", "txt", "neg", "pos")))
+
+se_output_nam_df <- 
+  bind_rows(se_output_nam, .id = "prin") %>% 
+  filter(!is.na(lik)) %>% 
+  mutate(sentiment = pos + neg)
+
+# if they respondent chose Disagree/Strongly Disagree, how about their score
+library(ggbeeswarm)
+library(ggridges)
+ggplot(se_output_nam_df) +
+  aes(x = lik, 
+      y = sentiment) +
+  geom_boxplot() +
+  geom_quasirandom(alpha = 0.05)  +
+  theme_minimal() +
+  labs(x = "",
+       y = " ← -ve  Sentiment  +ve  →")
+
+# is there a significant difference?
+
+aov_lik_txt_sent <- aov(sentiment ~ lik, se_output_nam_df)
+
+papaja::apa_print(aov_lik_txt_sent)$statistic$lik
+
+broom::tidy(TukeyHSD(aov_lik_txt_sent))
+
+library(tidyverse)
+library(ggpubr)
+library(rstatix)
+
+res.aov <- 
+  se_output_nam_df %>% 
+  anova_test(sentiment ~ lik)
+
+pwc <- 
+  se_output_nam_df %>% 
+  tukey_hsd(sentiment ~ lik) %>% 
+  add_xy_position(x = "group")
+
+ggboxplot(se_output_nam_df, 
+          x = "lik", 
+          y = "sentiment") +
+  geom_quasirandom(data = se_output_nam_df, 
+          aes(
+          x = lik, 
+          y = sentiment),
+          alpha = 0.05) +
+  stat_pvalue_manual(pwc, 
+                     hide.ns = TRUE) +
+  labs(y = " ← -ve  Sentiment  +ve  →",
+    subtitle = get_test_label(res.aov, 
+                              detailed = TRUE)
+    )   
+
+ggsave(here::here("figures/nine-principles-likert-text-sentiment.png"),
+       width = 10,
+       height = 5)
 ```
  
 
@@ -638,7 +855,7 @@ Let's get the median disagreement for each Principle for people who didn't submi
 # all respondents
 xx <- 
 likert_and_text %>% 
-  select(principle, 
+  dplyr::select(principle, 
          response_type,
          value) %>% 
   group_by(principle,

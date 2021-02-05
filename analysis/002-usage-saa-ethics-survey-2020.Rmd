@@ -139,8 +139,7 @@ dev.off()
 
 ```
 
-Free text analysis of the 'other' field of 'How have you used the SAA Principles of Ethics?' 
-
+Free text analysis of the 'other' field of 'How have you used the SAA Principles of Ethics?'
 
 ```{r}
 # how many people gave a text response? # 77
@@ -164,6 +163,11 @@ how_used_tags %>%
   group_by(doc, 
            tag) %>% 
   tally %>% 
+  mutate(tag = case_when(
+    tag == 'assessment' ~ 'assess',
+    tag == 'teaching' ~ 'teach',
+    TRUE ~ as.character(tag) 
+  )) %>% 
   ggplot() +
   aes(reorder(tag, n), 
       n) +
@@ -258,20 +262,20 @@ other_orgs %>%
   org_name == 'acra' ~ 'american cultural resources association',
   org_name == 'aia' ~ 'archaeological institute of america',
   org_name == 'aiche' ~ 'american institute of chemical engineers',
-  org_name == 'aic' ~ 'american insitute for conservation',
+  org_name == 'aic' ~ 'american institute for conservation',
   org_name == 'aicp' ~ 'american insitute of certified planners',
   org_name == 'armr' ~ 'archaeological resource management',
   org_name == 'asor' ~ 'american schools of oriental research',
   org_name == 'asprs' ~ 'american society for photogrammetry and remote sensing',
   org_name == 'arizona arch & histbsoc' ~ 'arizona archaeological and historical society',
-  org_name == 'cifa' ~ 'chartered institute of archaeologists',
+  org_name == 'cifa' ~ 'chartered institute for archaeologists',
   org_name == 'cofc' ~ 'college of charleston',
   org_name == 'eaa' ~ 'european association of archaeologists',
   org_name == 'gsa' ~ 'geological society of america',
   org_name == 'iai' ~ 'institute of archaeologists of ireland',
   org_name == 'imh' ~ 'institute of maratime history', 
   org_name == 'icahm' ~ 'international scientific committee on archaeological heritage management', 
-  org_name == 'ifa' ~ 'institute field archaeology', 
+  org_name == 'ifa' ~ 'chartered institute for archaeologists', 
   org_name == 'mwac' ~ 'midwest archaeological center', 
   org_name == 'nmshpo' ~ 'new mexico historic preservation division', 
   org_name == 'ncph' ~ 'national council of public history', 
