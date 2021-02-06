@@ -337,9 +337,10 @@ for(i in 1:length(nw)){
 ggsave(plot = nw[[i]],
        here::here(paste0("figures/nine-principles-network-principle-",
                          i, 
-                         ".png")),
+                         ".jpg")),
        width = 5,
-       height = 5)
+       height = 5,
+       dpi = 600)
 
 }
 ```
@@ -478,10 +479,11 @@ ggplot(xy) +
 mean_diss_out[[i]] <- mean_dis_plot # shift_legend3(mean_dis_plot)
 
 ggsave(
-  here::here(paste0("figures/nine-principles-mean-dis-", i, ".png")),
+  here::here(paste0("figures/nine-principles-mean-dis-", i, ".jpg")),
   plot = mean_diss_out[[i]] ,
        width = 15,
-       height = 15)
+       height = 15,
+      dpi = 600)
 }
 ```
 
@@ -708,9 +710,10 @@ plot_grid(pcol,
           rel_widths = c(2, .5)
           )
 
-ggsave(here::here("figures/nine-principles-likert-panel-all-and-text.png"),
+ggsave(here::here("figures/nine-principles-likert-panel-all-and-text.jpg"),
        width = 10,
-       height = 4.5)
+       height = 4.5,
+       dpi = 600)
 
 ```
 

@@ -350,9 +350,10 @@ plot_grid(ic.poly,
           labels="auto") 
     
 
-ggsave(here::here(paste0('figures/nine-principles-factor-panel-tsaar.png')),
+ggsave(here::here(paste0('figures/nine-principles-factor-panel-tsaar.jpg')),
        height = 6,
-       width = 13)
+       width = 13,
+       dpi = 600)
   
 ```
 

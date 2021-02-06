@@ -391,7 +391,7 @@ ggsave(here::here("figures/demographics-summary-panel.png"),
                   width = 15)
 ```
 
-MCA to explore structure in the demographics of the respondants 
+MCA to explore structure in the demographics of the respondents 
 
 ```{r}
 # demo vars
@@ -483,9 +483,10 @@ ggplot(data = mca1_obs_df,
   theme_bw(base_size = 12) +
   theme(legend.position = c(0.85, 0.7))
 
-ggsave(here::here("figures/demographics-mca.png"),
+ggsave(here::here("figures/demographics-mca.jpg"),
        width = 6,
-       height = 6)
+       height = 6,
+       dpi = 600)
 
 ```
 

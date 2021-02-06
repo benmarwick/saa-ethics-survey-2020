@@ -129,11 +129,11 @@ ggsave(here::here("figures/how-have-you-used-bar-plot.png"),
 ```
 
 ```{r how-have-used-plot, fig.cap=how_have_you_used$upset_plot_caption, fig.height=3}
-png(here::here("figures/how-have-you-used-upset-plot.png"),
+jpeg(here::here("figures/how-have-you-used-upset-plot.jpg"),
     width = 10,
     height = 6,
     units = "in",
-    res = 300)
+    res = 600)
 how_have_you_used$upset_plot 
 dev.off()
 
@@ -177,9 +177,10 @@ how_used_tags %>%
   coord_flip() +
   theme_bw(base_size = 14)
 
-ggsave(here::here("figures/how-have-you-used-tags.png"),
-       width = 5,
-       height = 3)
+ggsave(here::here("figures/how-have-you-used-tags.jpg"),
+       width = 4,
+       height = 2,
+       dpi = 600)
 ```
 
 Have you consulted any other codes of ethics? 
@@ -359,9 +360,10 @@ ggdraw() +
             width = .25, height = .3) 
 
   
-ggsave(here::here("figures/how-have-you-used-consulted-other-codes.png"),
+ggsave(here::here("figures/how-have-you-used-consulted-other-codes.jpg"),
        width = 8,
-       height = 6)
+       height = 6,
+       dpi = 600)
 
 ```
 
