@@ -922,6 +922,7 @@ library(stm)
 stm_out2 <- 
   stm(dfmat2, 
       init.type="Spectral", 
+      seed = 16,  # 10, 13, 15
       K = 0, # 45 topics
       verbose = FALSE) 
 
@@ -1009,9 +1010,12 @@ plotexcoer <-
   scale_colour_viridis_c(guide = "legend") +
   theme_bw(base_size = 10) +
   theme(
-        legend.position = c(.8, 
-                            .2)
-        )
+        legend.position = c(.15, 
+                            .21)
+        ) +
+        theme(legend.title = element_text(size = 6), 
+              legend.text  = element_text(size = 6),
+              legend.key.size = unit(1, "lines"))
 
 library(cowplot)
 library(gridGraphics)
@@ -1019,8 +1023,8 @@ library(gridGraphics)
 lower_plots <- 
 ggdraw(tm2) +
   draw_plot(plotexcoer, 
-            .73, .1, 
-            .25, .5) 
+            .74, .07, 
+            .25, .4) 
 
 dev.off()
 # need to make the plot panel big to avoid some 'pin' error
