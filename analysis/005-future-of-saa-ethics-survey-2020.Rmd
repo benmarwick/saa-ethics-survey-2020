@@ -529,7 +529,10 @@ purpose_of_ethics_doc_wide_demo <-
 purpose_of_ethics_doc %>% 
   mutate(id = 1:n()) %>% 
   left_join(purpose_of_ethics_doc_wide) %>% 
-    mutate(rank = parse_number(variable)) 
+    mutate(rank = parse_number(variable)) %>% 
+    # SAA style is nonbinary, not non-binary
+  mutate(gender = if_else(gender == 'Non-binary', 'Nonbinary', gender))
+
 
 names(purpose_of_ethics_doc_wide_demo)[6:13] <- 
   c("RPA member",
@@ -586,7 +589,7 @@ plot_grid(plotlist = purpose_of_ethics_doc_wide_demo_wide_means_plots$plot_out,
 
 ggsave(here::here(paste0('figures/purpose-of-doc-demographics.jpg')),
        height = 8.5,
-       width = 10,
+       width = 11,
        dpi = 600)
 
 ```
@@ -624,6 +627,7 @@ dev.off()
 
 Type of ethical document(s) by demographic group "What type of ethical document"
 
+
 ```{r}
 type_of_ethical_doc <- 
 survey_data %>% 
@@ -640,7 +644,9 @@ survey_data %>%
   drop_na() %>% 
   filter_all(all_vars(!str_detect(., 
                                   "Prefer|other|Other"))) %>% 
-  drop_na() 
+  drop_na() %>% 
+    # SAA style is nonbinary, not non-binary
+  mutate(gender = if_else(gender == 'Non-binary', 'Nonbinary', gender))
 
 names(type_of_ethical_doc) <- 
   c("Type of document",

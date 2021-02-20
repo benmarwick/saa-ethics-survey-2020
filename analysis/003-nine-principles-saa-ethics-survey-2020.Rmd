@@ -20,6 +20,7 @@ library(likert)
 library(knitr)
 library(UpSetR)
 library(patchwork)
+library(ggtext)
 
 # load our custom functions
 source(here::here("analysis/functions.R"))
@@ -61,16 +62,18 @@ library(grid)
     # how many responses for each item?
   n_output <- map_int(output, ~sum(!is.na(.x)))
   
-  names(output) <- paste0(short_names, ": ", short_principles, "\n(n = ", n_output, ")")
+  names(output) <- paste0(short_names, ": ", short_principles, "\n(_n_ = ", n_output, ")")
   
-
-  l_out <- likert(output)
+l_out <- likert(output)
   
 all_respondes_l_out <- 
 plot(l_out, 
      include.histogram = F,
      wrap = 100)  +
-  theme_minimal(base_size = 12)
+  theme_minimal(base_size = 12) +
+  theme(
+  axis.text.y = element_markdown()
+  )
 
 ggsave(plot = all_respondes_l_out, 
        here::here("figures/nine-principles-likert.png"),
@@ -365,7 +368,9 @@ bind_cols(survey_data_demographics,
             # 5 = strongly diagree
             ~fct_rev(factor(., levels=mylevels)) ) %>% 
   mutate_at(vars(!!names(survey_data)[likert_q]), 
-            ~as.numeric(.) ) 
+            ~as.numeric(.) ) %>% 
+  # SAA style is nonbinary, not non-binary
+  mutate(gender = if_else(gender == 'Non-binary', 'Nonbinary', gender))
 
 # get col names
 demo_cols <- c(names(survey_data_likert_demo)[1:8])
@@ -434,10 +439,10 @@ demo_values %>%
   unnest(data) %>% 
   right_join(demo_means_5) %>% 
   mutate(demo_var_test = paste0(demo_var, 
-                                "\n (H(", parameter, ") = ", 
+                                "<br> (H(", parameter, ") = ", 
                                 round(statistic, 2),
-                                ", p = ", round(p.value, 3) )) %>% 
-  mutate(var_n = paste0(var, " (n=", n, ")"))
+                                ", _p_ = ", round(p.value, 3) )) %>% 
+  mutate(var_n = paste0(var, " (_n_ = ", n, ")"))
 
 shift_legend3 <- function(p) {
     pnls <- cowplot::plot_to_gtable(p) %>% gtable::gtable_filter("panel") %>%
@@ -474,8 +479,12 @@ ggplot(xy) +
        size = "Number of\nrespondents") +
   coord_flip() +
   theme_bw(base_size = 20) +
-  theme(legend.position=c(.45, .35))
-
+  theme(legend.position=c(.45, .35),
+    axis.text.x = element_markdown(),
+    axis.text.y = element_markdown(),
+    strip.text.x = element_markdown(size = 14)
+  )
+        
 mean_diss_out[[i]] <- mean_dis_plot # shift_legend3(mean_dis_plot)
 
 ggsave(
@@ -636,7 +645,7 @@ map(full_list, ~likert(data.frame(.x[,1]))$results) %>%
 
 n_txt_lik <-  map_int(full_list, nrow)
 
-txt_lik$Item <- paste0(short_names, ": ", short_principles, " (n = ", n_txt_lik, ")")
+txt_lik$Item <- paste0(short_names, ": ", short_principles, " (_n_ = ", n_txt_lik, ")")
 
 txt_lik_l <- likert(summary = txt_lik)
 
@@ -644,7 +653,10 @@ txt_lik_l_plot <-
 plot(txt_lik_l, 
      include.histogram = F,
      wrap = 100)  +
-  theme_minimal(base_size = 12)
+  theme_minimal(base_size = 12) +
+  theme(
+  axis.text.y = element_markdown()
+  )
 
 ggsave(plot = txt_lik_l_plot,
        here::here("figures/nine-principles-likert-text-responders.png"),
@@ -662,7 +674,10 @@ map(full_list_no_text, ~likert(data.frame(.x[,1]))$results) %>%
 no_txt_lik_l <- likert(summary = no_txt_lik)
   
 plot(no_txt_lik_l, include.histogram = F)  +
-  theme_minimal(base_size = 14)
+  theme_minimal(base_size = 14)  +
+  theme(
+  axis.text.y = element_markdown()
+  )
 
 ggsave(here::here("figures/nine-principles-likert-no-text-responders.png"),
        width = 10,

@@ -403,7 +403,9 @@ demographic_vars <-
    str_detect(`What is your primary work setting? - Selected Choice`, "CRM") ~ "CRM", 
    str_detect(`What is your primary work setting? - Selected Choice`, "Gov") ~ "Government",
    TRUE ~ "other"
-  )) %>% 
+  )) %>%
+    # SAA style is nonbinary, not non-binary
+  mutate(gender = ifelse(gender == 'Non-binary', 'Nonbinary', gender)) %>% 
   dplyr::select(-`What is your age?`,
                 -`What is your gender identity? - Selected Choice`,
                 -`Do you consider yourself a member of the LGBTQIA+ community?`,
@@ -415,7 +417,8 @@ demographic_vars <-
               ) %>% 
   mutate_all(as.factor) %>% 
   filter_all(all_vars(!str_detect(., "Prefer|other|Other"))) %>% 
-  drop_na
+  drop_na() 
+
 
 names(demographic_vars) <-  c(plot_labels, "Work setting")
 
@@ -431,9 +434,6 @@ require(ggplot2)
 # apply MCA
 mca1 = MCA(as.data.frame(demographic_vars), 
            graph = FALSE)
-
-# list of results
-mca1
 
 # data frame with variable coordinates
 mca1_vars_df = 
@@ -452,7 +452,6 @@ rownames(mca1_vars_df) <- str_remove(rownames(mca1_vars_df), "\\.$")
 rownames(mca1_vars_df) <- 
   str_replace(rownames(mca1_vars_df), "African-American", "African American" )
                                  
-
 # plot of variable categories
 ggplot(data=mca1_vars_df, 
        aes(x = Dim.1, y = Dim.2, label = rownames(mca1_vars_df))) +
